@@ -17,20 +17,20 @@ export default function DashboardScreen() {
 
   // Basic Derived State Computations
   const totalSpendings = subscriptions.reduce((sum, sub) => sum + sub.amount, 0);
-  
+
   // Sort by date to get closest first
-  const sortedSubs = [...subscriptions].sort((a, b) => 
-     new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime()
+  const sortedSubs = [...subscriptions].sort((a, b) =>
+      new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime()
   );
 
   const upcomingPayments = sortedSubs.slice(0, 5);
   const trialPeriods = sortedSubs.filter(s => s.isTrialPeriod).slice(0, 5);
-  
+
   // Assuming nextCancellationDate exists for cancellation deadlines
   const upcomingCancellations = [...subscriptions]
-    .filter(s => s.nextCancellationDate)
-    .sort((a, b) => new Date(a.nextCancellationDate!).getTime() - new Date(b.nextCancellationDate!).getTime())
-    .slice(0, 5);
+      .filter(s => s.nextCancellationDate)
+      .sort((a, b) => new Date(a.nextCancellationDate!).getTime() - new Date(b.nextCancellationDate!).getTime())
+      .slice(0, 5);
 
   const navigateToSubscription = (sub: Subscription) => {
     // In actual implementation would navigate to detail
@@ -38,41 +38,44 @@ export default function DashboardScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <View style={styles.header}>
-          <Text variant="headlineSmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
-            Hallo, {user?.displayName || 'User'}!
-          </Text>
-          <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
-            Hier ist deine aktuelle Übersicht.
-          </Text>
-        </View>
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <ScrollView
+            style={{ backgroundColor: theme.colors.background }}
+            contentContainerStyle={styles.scrollContent}
+        >
+          <View style={styles.header}>
+            <Text variant="headlineSmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
+              Hallo, {user?.displayName || 'User'}!
+            </Text>
+            <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              Hier ist deine aktuelle Übersicht.
+            </Text>
+          </View>
 
-        <View style={styles.widgetRow}>
-          <DashboardWidget 
-            title="Monatliche Kosten" 
-            value={formatCurrency(totalSpendings)} 
-            subtitle={`${subscriptions.length} aktive Abos`}
-            icon="currency-eur" 
-          />
-        </View>
+          <View style={styles.widgetRow}>
+            <DashboardWidget
+                title="Monatliche Kosten"
+                value={formatCurrency(totalSpendings)}
+                subtitle={`${subscriptions.length} aktive Abos`}
+                icon="currency-eur"
+            />
+          </View>
 
-        <Section title="Nächste Zahlungen" data={upcomingPayments} emptyText="Keine Zahlungen anstehend." theme={theme} />
-        <Section title="Ablaufende Probemonate" data={trialPeriods} emptyText="Keine Probemonate aktiv." theme={theme} />
-        <Section title="Kündigungsfristen" data={upcomingCancellations} emptyText="Keine Fristen in Kürze." theme={theme} />
-        
-        {/* Spacer for FAB */}
-        <View style={{ height: 80 }} />
-      </ScrollView>
+          <Section title="Nächste Zahlungen" data={upcomingPayments} emptyText="Keine Zahlungen anstehend." theme={theme} />
+          <Section title="Ablaufende Probemonate" data={trialPeriods} emptyText="Keine Probemonate aktiv." theme={theme} />
+          <Section title="Kündigungsfristen" data={upcomingCancellations} emptyText="Keine Fristen in Kürze." theme={theme} />
 
-      <FAB
-        icon="plus"
-        style={[styles.fab, { backgroundColor: theme.colors.primaryContainer }]}
-        color={theme.colors.onPrimaryContainer}
-        onPress={() => router.push('/subscription/add')}
-      />
-    </View>
+          {/* Spacer for FAB */}
+          <View style={{ height: 80 }} />
+        </ScrollView>
+
+        <FAB
+            icon="plus"
+            style={[styles.fab, { backgroundColor: theme.colors.primaryContainer }]}
+            color={theme.colors.onPrimaryContainer}
+            onPress={() => router.push('/subscription/add')}
+        />
+      </View>
   );
 }
 
