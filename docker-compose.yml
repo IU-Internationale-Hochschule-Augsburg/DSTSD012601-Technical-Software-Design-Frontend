@@ -4,7 +4,6 @@ services:
     container_name: expo-react-native
 
     ports:
-      - "19000:19000"
       - "8081:8081"
 
     volumes:
@@ -15,7 +14,5 @@ services:
       - CHOKIDAR_USEPOLLING=true
       - WATCHPACK_POLLING=true
 
-    stdin_open: true
-    tty: true
 
     command: npx expo start

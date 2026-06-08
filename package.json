@@ -10,7 +10,6 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "build:web": "expo export -p web && npx workbox-cli generateSW workbox-config.js"
-
   },
   "dependencies": {
     "@expo/metro-runtime": "^55.0.10",
