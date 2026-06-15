@@ -3,6 +3,11 @@
 export const APP_NAME = 'AboTracker';
 export const APP_VERSION = '1.0.0';
 
+// ─── Standalone Mode ────────────────────────────────────────────────────────
+
+/** Standalone-Modus: Wenn true, wird nicht versucht, den Server zu erreichen. */
+export const STANDALONE = true;
+
 // ─── Storage Keys ───────────────────────────────────────────────────────────
 
 export const STORAGE_KEYS = {

@@ -7,6 +7,7 @@ import type {
 } from '../types/backend';
 import { ApiService, ApiError } from './api.service';
 import { StorageService } from './storage.service';
+import { STANDALONE } from '../utils/constants';
 
 /** Erzeugt eine lokal eindeutige Id (für offline angelegte Entitäten). */
 export function generateLocalId(): Guid {
@@ -127,108 +128,128 @@ export function createSyncService<T extends SyncableEntity>(config: SyncServiceC
 
   // ─── Synchronisierung mit dem Backend ──────────────────────────────────────
 
-  async function push(store: LocalEntityStore<T>, result: SyncResult): Promise<void> {
-    const byId = new Map(store.items.map((i) => [i.id, i] as const));
-    const { pendingCreateIds, pendingUpdateIds, pendingDeleteIds } = store.sync;
+   async function push(store: LocalEntityStore<T>, result: SyncResult): Promise<void> {
+     // Wenn Standalone, keine Server-Aufrufe machen
+     if (STANDALONE) {
+       // Markiere alles als gepusht, ohne zu synchronisieren
+       store.sync.pendingCreateIds = [];
+       store.sync.pendingUpdateIds = [];
+       store.sync.pendingDeleteIds = [];
+       return;
+     }
 
-    // 1) Löschungen
-    for (const id of pendingDeleteIds) {
-      try {
-        await ApiService.delete(`${endpoint}/${id}`);
-        result.pushed += 1;
-      } catch (e) {
-        // 404 = serverseitig schon weg → als erledigt betrachten.
-        if (e instanceof ApiError && e.status === 404) {
-          result.pushed += 1;
-        } else {
-          result.errors.push(`delete ${id}: ${(e as Error).message}`);
-          continue;
-        }
-      }
-      store.sync.pendingDeleteIds = store.sync.pendingDeleteIds.filter((x) => x !== id);
-    }
+     const byId = new Map(store.items.map((i) => [i.id, i] as const));
+     const { pendingCreateIds, pendingUpdateIds, pendingDeleteIds } = store.sync;
 
-    // 2) Neuanlagen
-    for (const id of pendingCreateIds) {
-      const local = byId.get(id);
-      if (!local) {
-        store.sync.pendingCreateIds = store.sync.pendingCreateIds.filter((x) => x !== id);
-        continue;
-      }
-      try {
-        const created = await ApiService.post<T>(endpoint, local);
-        // Server kann eine eigene Id vergeben → lokal ersetzen.
-        store.items = store.items.map((i) => (i.id === id ? created : i));
-        store.sync.pendingCreateIds = store.sync.pendingCreateIds.filter((x) => x !== id);
-        result.pushed += 1;
-      } catch (e) {
-        result.errors.push(`create ${id}: ${(e as Error).message}`);
-      }
-    }
+     // 1) Löschungen
+     for (const id of pendingDeleteIds) {
+       try {
+         await ApiService.delete(`${endpoint}/${id}`);
+         result.pushed += 1;
+       } catch (e) {
+         // 404 = serverseitig schon weg → als erledigt betrachten.
+         if (e instanceof ApiError && e.status === 404) {
+           result.pushed += 1;
+         } else {
+           result.errors.push(`delete ${id}: ${(e as Error).message}`);
+           continue;
+         }
+       }
+       store.sync.pendingDeleteIds = store.sync.pendingDeleteIds.filter((x) => x !== id);
+     }
 
-    // 3) Aktualisierungen
-    for (const id of pendingUpdateIds) {
-      const local = byId.get(id);
-      if (!local) {
-        store.sync.pendingUpdateIds = store.sync.pendingUpdateIds.filter((x) => x !== id);
-        continue;
-      }
-      try {
-        await ApiService.put<T>(`${endpoint}/${id}`, local);
-        store.sync.pendingUpdateIds = store.sync.pendingUpdateIds.filter((x) => x !== id);
-        result.pushed += 1;
-      } catch (e) {
-        result.errors.push(`update ${id}: ${(e as Error).message}`);
-      }
-    }
-  }
+     // 2) Neuanlagen
+     for (const id of pendingCreateIds) {
+       const local = byId.get(id);
+       if (!local) {
+         store.sync.pendingCreateIds = store.sync.pendingCreateIds.filter((x) => x !== id);
+         continue;
+       }
+       try {
+         const created = await ApiService.post<T>(endpoint, local);
+         // Server kann eine eigene Id vergeben → lokal ersetzen.
+         store.items = store.items.map((i) => (i.id === id ? created : i));
+         store.sync.pendingCreateIds = store.sync.pendingCreateIds.filter((x) => x !== id);
+         result.pushed += 1;
+       } catch (e) {
+         result.errors.push(`create ${id}: ${(e as Error).message}`);
+       }
+     }
 
-  async function pull(store: LocalEntityStore<T>, result: SyncResult): Promise<void> {
-    const remote = await ApiService.get<T[]>(endpoint);
-    const stillPending = new Set<Guid>([
-      ...store.sync.pendingCreateIds,
-      ...store.sync.pendingUpdateIds,
-      ...store.sync.pendingDeleteIds,
-    ]);
+     // 3) Aktualisierungen
+     for (const id of pendingUpdateIds) {
+       const local = byId.get(id);
+       if (!local) {
+         store.sync.pendingUpdateIds = store.sync.pendingUpdateIds.filter((x) => x !== id);
+         continue;
+       }
+       try {
+         await ApiService.put<T>(`${endpoint}/${id}`, local);
+         store.sync.pendingUpdateIds = store.sync.pendingUpdateIds.filter((x) => x !== id);
+         result.pushed += 1;
+       } catch (e) {
+         result.errors.push(`update ${id}: ${(e as Error).message}`);
+       }
+     }
+   }
 
-    const merged = new Map(store.items.map((i) => [i.id, i] as const));
-    for (const remoteItem of remote) {
-      // Lokale, noch nicht gepushte Änderungen nicht überschreiben.
-      if (stillPending.has(remoteItem.id)) {
-        result.conflicts += 1;
-        continue;
-      }
-      merged.set(remoteItem.id, remoteItem);
-      result.pulled += 1;
-    }
+   async function pull(store: LocalEntityStore<T>, result: SyncResult): Promise<void> {
+     // Wenn Standalone, keine Daten vom Server abholen
+     if (STANDALONE) {
+       return;
+     }
 
-    // Serverseitig gelöschte Einträge lokal entfernen (sofern nicht pending).
-    const remoteIds = new Set(remote.map((i) => i.id));
-    for (const id of [...merged.keys()]) {
-      if (!remoteIds.has(id) && !stillPending.has(id)) {
-        merged.delete(id);
-      }
-    }
+     const remote = await ApiService.get<T[]>(endpoint);
+     const stillPending = new Set<Guid>([
+       ...store.sync.pendingCreateIds,
+       ...store.sync.pendingUpdateIds,
+       ...store.sync.pendingDeleteIds,
+     ]);
 
-    store.items = [...merged.values()];
-  }
+     const merged = new Map(store.items.map((i) => [i.id, i] as const));
+     for (const remoteItem of remote) {
+       // Lokale, noch nicht gepushte Änderungen nicht überschreiben.
+       if (stillPending.has(remoteItem.id)) {
+         result.conflicts += 1;
+         continue;
+       }
+       merged.set(remoteItem.id, remoteItem);
+       result.pulled += 1;
+     }
 
-  /** Pusht offene Änderungen und zieht anschließend den aktuellen Serverstand. */
-  async function sync(): Promise<SyncResult> {
-    const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
-    const store = await load();
+     // Serverseitig gelöschte Einträge lokal entfernen (sofern nicht pending).
+     const remoteIds = new Set(remote.map((i) => i.id));
+     for (const id of [...merged.keys()]) {
+       if (!remoteIds.has(id) && !stillPending.has(id)) {
+         merged.delete(id);
+       }
+     }
 
-    await push(store, result);
-    try {
-      await pull(store, result);
-      store.sync.lastSyncedAt = new Date().toISOString();
-    } catch (e) {
-      result.errors.push(`pull: ${(e as Error).message}`);
-    }
+     store.items = [...merged.values()];
+   }
 
-    await save(store);
-    return result;
-  }
+   /** Pusht offene Änderungen und zieht anschließend den aktuellen Serverstand. */
+   async function sync(): Promise<SyncResult> {
+     const result: SyncResult = { pushed: 0, pulled: 0, conflicts: 0, errors: [] };
+     const store = await load();
+
+     if (!STANDALONE) {
+       await push(store, result);
+       try {
+         await pull(store, result);
+       } catch (e) {
+         result.errors.push(`pull: ${(e as Error).message}`);
+       }
+     } else {
+       // Im Standalone-Modus: Lokal alles als gepusht markieren
+       await push(store, result);
+     }
+
+     // Immer lastSyncedAt aktualisieren (auch im Standalone-Modus)
+     store.sync.lastSyncedAt = new Date().toISOString();
+     await save(store);
+     return result;
+   }
 
   async function getSyncMetadata(): Promise<SyncMetadata> {
     return (await load()).sync;

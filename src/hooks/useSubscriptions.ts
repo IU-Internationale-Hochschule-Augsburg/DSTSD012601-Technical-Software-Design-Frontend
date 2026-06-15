@@ -33,40 +33,40 @@ export const useSubscriptions = () => {
   // Delete
   const deleteSubscription = (id: string) => remove(id);
 
-  const getFilteredAndSorted = (filter: FilterOptions, sort: SortOption) => {
-    let result = [...subscriptions];
+   const getFilteredAndSorted = (filter: FilterOptions, sort: SortOption) => {
+     let result = [...(subscriptions || [])];
 
-    // Filter Category
-    if (filter.categories.length > 0) {
-      result = result.filter((s) => filter.categories.includes(s.category));
-    }
+     // Filter Category
+     if (filter.categories.length > 0) {
+       result = result.filter((s) => filter.categories.includes(s.category));
+     }
 
-    // Filter Query
-    if (filter.searchQuery) {
-      const query = filter.searchQuery.toLowerCase();
-      result = result.filter((s) => s.name.toLowerCase().includes(query));
-    }
+     // Filter Query
+     if (filter.searchQuery) {
+       const query = filter.searchQuery.toLowerCase();
+       result = result.filter((s) => s.name.toLowerCase().includes(query));
+     }
 
-    // Sort
-    result.sort((a, b) => {
-      const field = sort.field;
-      const asc = sort.direction === 'asc';
+     // Sort
+     result.sort((a, b) => {
+       const field = sort.field;
+       const asc = sort.direction === 'asc';
 
-      if (typeof a[field] === 'number') {
-        return asc
-          ? (a[field] as number) - (b[field] as number)
-          : (b[field] as number) - (a[field] as number);
-      }
-      if (typeof a[field] === 'string') {
-        return asc
-          ? (a[field] as string).localeCompare(b[field] as string)
-          : (b[field] as string).localeCompare(a[field] as string);
-      }
-      return 0;
-    });
+       if (typeof a[field] === 'number') {
+         return asc
+           ? (a[field] as number) - (b[field] as number)
+           : (b[field] as number) - (a[field] as number);
+       }
+       if (typeof a[field] === 'string') {
+         return asc
+           ? (a[field] as string).localeCompare(b[field] as string)
+           : (b[field] as string).localeCompare(a[field] as string);
+       }
+       return 0;
+     });
 
-    return result;
-  };
+     return result;
+   };
 
   return {
     subscriptions,
