@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
-import { AuthProvider } from '../context/AuthContext';
+import AuthProvider from '../context/AuthContext';
 import { useAuth } from '../hooks/useAuth';
 import { lightTheme, darkTheme } from '../theme';
 import { NotificationService } from '../services/notification.service';
@@ -20,11 +20,17 @@ const RootLayoutNav = () => {
   const segments = useSegments();
   const router = useRouter();
 
+
+  useEffect(() => {
+    console.log('segments:', segments, 'user:', !!user, 'isLoading:', isLoading);
+  }, [segments, user, isLoading]);
+
   // Navigation Logic based on Auth State
   useEffect(() => {
     if (isLoading) return;
 
     const inAuthGroup = segments[0] === '(auth)';
+    const inTabsGroup = segments[0] === '(tabs)';
 
     if (!user && !inAuthGroup) {
       // User is not signed in and trying to access app
@@ -36,6 +42,9 @@ const RootLayoutNav = () => {
          // User is signed in and trying to access auth screen
          router.replace('/(tabs)');
       }
+    }else if (user && !inTabsGroup && !inAuthGroup) {
+      // ← OAuth-Redirect landet hier (root-level, kein Auth, kein Tabs)
+      router.replace('/(tabs)');
     }
   }, [user, isLoading, requireMfaSetup, segments]);
 

@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { Button, useTheme, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { AuthService } from '../services/auth.service';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { useAuth } from '../hooks/useAuth';
+import { AuthProvider, type User } from '../types';
 
 interface Props {
   onSuccess: () => void;
@@ -11,34 +13,54 @@ interface Props {
 
 export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   const theme = useTheme();
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { signIn: googleSignIn, isLoading: googleLoading, error: googleError, user: googleUser } = useGoogleAuth();
+  const { setUser, setIsLoading } = useAuth();
+  const [appleLoading, setAppleLoading] = React.useState(false);
+  const [appleError, setAppleError] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    console.log('googleUser:', googleUser);
+    console.log('setIsLoading type:', typeof setIsLoading);
+    // Wenn Google-User vorhanden ist, setze ihn in den Auth-Context
+    if (googleUser) {
+      const appUser: User = {
+        id: googleUser.id,
+        email: googleUser.email,
+        displayName: googleUser.name,
+        avatarUrl: googleUser.picture,
+        provider: AuthProvider.GOOGLE,
+        mfaEnabled: true, // Google SSO-User benötigen MFA
+        createdAt: new Date().toISOString(),
+      };
+      setUser(appUser);
+      setIsLoading(false);
+    }
+  }, [googleUser, setUser, onSuccess]);
 
   const handleGoogle = async () => {
-    setLoading('google');
     try {
-      await AuthService.loginWithGoogle();
-      onSuccess();
+      await googleSignIn();
     } catch (e) {
-      setError('Google Login fehlgeschlagen.');
-    } finally {
-      setLoading(null);
+      console.error('Google Login error:', e);
     }
   };
 
   const handleApple = async () => {
-    setLoading('apple');
+    setAppleLoading(true);
     try {
-      await AuthService.loginWithApple();
-      onSuccess();
+      // Stub: Apple Login würde hier implementiert werden
+      // Für jetzt: Mock implementation
+      setAppleError('Apple Login wird noch nicht unterstützt.');
     } catch (e) {
-      setError('Apple Login fehlgeschlagen.');
+      setAppleError('Apple Login fehlgeschlagen.');
     } finally {
-      setLoading(null);
+      setAppleLoading(false);
     }
   };
 
   const labelPrefix = mode === 'login' ? 'Anmelden mit' : 'Registrieren mit';
+
+  const displayError = googleError || appleError;
 
   return (
     <View style={styles.container}>
@@ -46,35 +68,22 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
         mode="outlined"
         icon={() => <MaterialCommunityIcons name="google" size={20} color={theme.colors.error} />}
         onPress={handleGoogle}
-        loading={loading === 'google'}
-        disabled={loading !== null}
+        loading={googleLoading}
+        disabled={googleLoading || appleLoading}
         style={styles.button}
       >
-        {labelPrefix} Google
+        {googleLoading ? '' : `${labelPrefix} Google`}
       </Button>
 
-      {/* Apple is mostly relevant on iOS devices based on Expo guidelines */}
-      {Platform.OS !== 'android' && (
-        <Button
-          mode="contained"
-          buttonColor="#000000"
-          textColor="#FFFFFF"
-          icon={() => <MaterialCommunityIcons name="apple" size={20} color="#FFFFFF" />}
-          onPress={handleApple}
-          loading={loading === 'apple'}
-          disabled={loading !== null}
-          style={styles.button}
-        >
-          {labelPrefix} Apple
-        </Button>
-      )}
-
       <Snackbar
-        visible={error !== null}
-        onDismiss={() => setError(null)}
+        visible={displayError !== null}
+        onDismiss={() => {
+          setAppleError(null);
+          // googleError wird durch useGoogleAuth selbst verwaltet
+        }}
         duration={3000}
       >
-        {error}
+        {displayError}
       </Snackbar>
     </View>
   );

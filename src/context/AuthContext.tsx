@@ -10,6 +10,7 @@ interface AuthContextProps {
   logout: () => Promise<void>;
   requireMfaSetup: boolean;
   setRequireMfaSetup: (val: boolean) => void;
+  setIsLoading: (val: boolean) => void; // ← NEU
 }
 
 export const AuthContext = createContext<AuthContextProps>({
@@ -19,9 +20,10 @@ export const AuthContext = createContext<AuthContextProps>({
   logout: async () => {},
   requireMfaSetup: false,
   setRequireMfaSetup: () => {},
+  setIsLoading: () => {}, // ← NEU
 });
 
-export const AuthProvider = ({ children }: { children: ReactNode }) => {
+const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [requireMfaSetup, setRequireMfaSetup] = useState(false);
@@ -29,15 +31,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadUser = async () => {
       try {
+        // ← NEU: OAuth-Redirect erkannt → isLoading bleibt true
+        // SSOButtons übernimmt und ruft setIsLoading(false) auf
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('code') && params.get('state')) {
+            return;
+          }
+        }
+
         const currentUser = await AuthService.getCurrentUser();
-        setUser(currentUser);
+        handleSetUser(currentUser);
         if (currentUser) {
-           NotificationService.setExternalUserId(currentUser.id);
+          NotificationService.setExternalUserId(currentUser.id);
         }
       } catch (error) {
         console.error('Failed to load user session', error);
       } finally {
-        setIsLoading(false);
+        // ← NEU: nur setIsLoading wenn KEIN OAuth-Redirect
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          if (!params.get('code')) {
+            setIsLoading(false);
+          }
+        } else {
+          setIsLoading(false);
+        }
       }
     };
     loadUser();
@@ -57,6 +76,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     handleSetUser(null);
   };
 
+
+  // @ts-ignore
   return (
     <AuthContext.Provider 
       value={{ 
@@ -65,10 +86,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser: handleSetUser, 
         logout,
         requireMfaSetup,
-        setRequireMfaSetup
+        setRequireMfaSetup,
+        setIsLoading,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
+export default AuthProvider

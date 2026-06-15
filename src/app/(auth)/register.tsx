@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, Text, useTheme, Snackbar } from 'react-native-paper';
+import { TextInput, Button, Text, useTheme, Snackbar, ActivityIndicator } from 'react-native-paper';
 import { Link, useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthService } from '../../services/auth.service';
@@ -12,7 +12,8 @@ export default function RegisterScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+  const [showLoadingIndicator, setShowLoadingIndicator] = useState(false);
+
   const { setUser, setRequireMfaSetup } = useAuth();
   const theme = useTheme();
   const router = useRouter();
@@ -33,11 +34,22 @@ export default function RegisterScreen() {
       // New users must setup MFA
       setRequireMfaSetup(true);
       setUser(user);
+      router.replace('/(auth)/mfa-setup');
     } catch (e) {
       setError('Registrierung fehlgeschlagen.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSSOSuccess = () => {
+    // SSO-User wird durch SSOButtons direkt in den Auth-Context gesetzt
+    // Google-User benötigen auch MFA
+    setRequireMfaSetup(true);
+    setShowLoadingIndicator(true);
+    setTimeout(() => {
+      router.replace('/(auth)/mfa-setup');
+    }, 500);
   };
 
   return (
@@ -46,6 +58,12 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView contentContainerStyle={styles.container}>
+        {showLoadingIndicator && (
+          <View style={[styles.loadingOverlay, { backgroundColor: theme.colors.background }]}>
+            <ActivityIndicator animating={true} size="large" color={theme.colors.primary} />
+          </View>
+        )}
+
         <View style={styles.header}>
           <Text variant="displaySmall" style={{ color: theme.colors.primary, fontWeight: 'bold' }}>
             Konto erstellen
@@ -63,6 +81,7 @@ export default function RegisterScreen() {
           autoCapitalize="none"
           keyboardType="email-address"
           style={styles.input}
+          disabled={loading || showLoadingIndicator}
         />
         
         <TextInput
@@ -72,6 +91,7 @@ export default function RegisterScreen() {
           onChangeText={setPassword}
           secureTextEntry
           style={styles.input}
+          disabled={loading || showLoadingIndicator}
         />
 
         <TextInput
@@ -81,12 +101,14 @@ export default function RegisterScreen() {
           onChangeText={setConfirmPassword}
           secureTextEntry
           style={styles.input}
+          disabled={loading || showLoadingIndicator}
         />
 
         <Button 
           mode="contained" 
           onPress={handleRegister} 
           loading={loading}
+          disabled={loading || showLoadingIndicator}
           style={styles.registerButton}
           contentStyle={{ paddingVertical: 8 }}
         >
@@ -99,7 +121,7 @@ export default function RegisterScreen() {
           <View style={[styles.line, { backgroundColor: theme.colors.outlineVariant }]} />
         </View>
 
-        <SSOButtons onSuccess={() => router.replace('/(tabs)')} mode="register" />
+        <SSOButtons onSuccess={handleSSOSuccess} mode="register" />
 
         <View style={styles.footer}>
           <Text style={{ color: theme.colors.onSurfaceVariant }}>Bereits ein Konto? </Text>
@@ -121,6 +143,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     padding: 24,
     justifyContent: 'center',
+    position: 'relative',
   },
   header: {
     alignItems: 'center',
@@ -146,5 +169,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     marginTop: 32,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
   }
 });
