@@ -87,7 +87,7 @@ export interface User {
   displayName: string;
   avatarUrl?: string;
   mfaEnabled: boolean;
-  provider: AuthProvider;
+  provider: string;
   createdAt: string;
 }
 
