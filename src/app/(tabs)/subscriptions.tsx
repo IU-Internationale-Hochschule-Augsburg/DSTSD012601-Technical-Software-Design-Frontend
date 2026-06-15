@@ -9,7 +9,7 @@ import { EmptyState } from '../../components/EmptyState';
 import type { Subscription, FilterOptions, SortOption, SortField } from '../../types';
 
 export default function SubscriptionsScreen() {
-  const { subscriptions = [], loading, syncing, refresh, getFilteredAndSorted } = useSubscriptions();
+  const { loading, syncing, refresh, getFilteredAndSorted } = useSubscriptions();
   const theme = useTheme();
   const router = useRouter();
 
