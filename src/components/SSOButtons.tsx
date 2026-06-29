@@ -18,7 +18,7 @@ const GOOGLE_USERINFO_URL = 'https://www.googleapis.com/oauth2/v3/userinfo';
 
 export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   const theme = useTheme();
-  const { setUser } = useAuth();
+  const { setUser, setRequireMfaSetup } = useAuth();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,6 +55,9 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
         if (!profile.email || !profile.sub) throw new Error('Profil unvollständig');
 
         const user = await AuthService.loginWithGoogleProfile(profile);
+        // MFA-Gate: nur wenn 2FA eingerichtet UND beim Login aktiviert ist.
+        const { configured, enabled } = await AuthService.getMfaStatus();
+        setRequireMfaSetup(configured && enabled);
         setUser(user);
         onSuccess();
       } catch (e) {
@@ -64,7 +67,7 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
         setLoading(null);
       }
     })();
-  }, [response, onSuccess, setUser]);
+  }, [response, onSuccess, setUser, setRequireMfaSetup]);
 
   const handleGoogle = async () => {
     setLoading('google');

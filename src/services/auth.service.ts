@@ -33,13 +33,13 @@ interface AuthResponse {
   user: BackendUser;
 }
 
-function mapUser(b: BackendUser, provider: AuthProvider = AuthProvider.EMAIL): User {
+function mapUser(b: BackendUser, provider: AuthProvider, mfaEnabled: boolean): User {
   return {
     id: b.id,
     email: b.email,
     displayName: b.name || b.email.split('@')[0],
     provider,
-    mfaEnabled: true,
+    mfaEnabled,
     createdAt: new Date().toISOString(),
   };
 }
@@ -48,7 +48,10 @@ async function persistSession(auth: AuthResponse, provider: AuthProvider): Promi
   await StorageService.set(STORAGE_KEYS.AUTH_TOKEN, auth.accessToken);
   await StorageService.set(STORAGE_KEYS.REFRESH_TOKEN, auth.refreshToken);
   await StorageService.set(STORAGE_KEYS.TOKEN_EXPIRES_AT, auth.accessTokenExpiresAt);
-  const user = mapUser(auth.user, provider);
+  // mfaEnabled spiegelt die gerätelokale Login-Präferenz (überlebt Logout).
+  const loginEnabled =
+    (await StorageService.get<boolean>(STORAGE_KEYS.MFA_LOGIN_ENABLED)) === true;
+  const user = mapUser(auth.user, provider, loginEnabled);
   await StorageService.set(STORAGE_KEYS.USER, user);
   return user;
 }
@@ -118,6 +121,17 @@ export const AuthService = {
   },
 
   /**
+   * Aktueller MFA-Status auf diesem Gerät.
+   *  - `configured`: ein TOTP-Secret ist hinterlegt
+   *  - `enabled`: MFA soll beim Login abgefragt werden
+   */
+  async getMfaStatus(): Promise<{ configured: boolean; enabled: boolean }> {
+    const secret = await StorageService.get<string>(STORAGE_KEYS.MFA_SECRET);
+    const enabled = (await StorageService.get<boolean>(STORAGE_KEYS.MFA_LOGIN_ENABLED)) === true;
+    return { configured: !!secret, enabled };
+  },
+
+  /**
    * Startet die MFA-Einrichtung: erzeugt ein TOTP-Secret (Google Authenticator
    * kompatibel), persistiert es als "pending" und liefert Secret + otpauth-URI
    * für den QR-Code.
@@ -133,8 +147,8 @@ export const AuthService = {
   },
 
   /**
-   * Verifiziert einen 6-stelligen TOTP-Code gegen das eingerichtete Secret.
-   * Bei Erfolg wird MFA dauerhaft aktiviert.
+   * Verifiziert einen 6-stelligen TOTP-Code gegen das hinterlegte Secret.
+   * Bei Erfolg wird MFA für den Login aktiviert.
    */
   async verifyMFA(code: string): Promise<boolean> {
     const secret = await StorageService.get<string>(STORAGE_KEYS.MFA_SECRET);
@@ -143,18 +157,33 @@ export const AuthService = {
     const ok = await verifyTotp(code, secret);
     if (ok) {
       await StorageService.set(STORAGE_KEYS.MFA_VERIFIED, true);
-      const user = await StorageService.get<User>(STORAGE_KEYS.USER);
-      if (user) await StorageService.set(STORAGE_KEYS.USER, { ...user, mfaEnabled: true });
+      await StorageService.set(STORAGE_KEYS.MFA_LOGIN_ENABLED, true);
+      await this.setMfaEnabledFlag(true);
     }
     return ok;
   },
 
-  /** Überspringt die MFA-Einrichtung (Secret verwerfen, MFA bleibt deaktiviert). */
+  /** Aktiviert/deaktiviert die MFA-Abfrage beim Login (Secret bleibt erhalten). */
+  async setMfaLoginEnabled(enabled: boolean): Promise<User | null> {
+    await StorageService.set(STORAGE_KEYS.MFA_LOGIN_ENABLED, enabled);
+    return this.setMfaEnabledFlag(enabled);
+  },
+
+  /** Überspringt/entfernt die MFA-Einrichtung – MFA bleibt deaktiviert. */
   async skipMFA(): Promise<void> {
     await StorageService.remove(STORAGE_KEYS.MFA_SECRET);
     await StorageService.remove(STORAGE_KEYS.MFA_VERIFIED);
+    await StorageService.set(STORAGE_KEYS.MFA_LOGIN_ENABLED, false);
+    await this.setMfaEnabledFlag(false);
+  },
+
+  /** Hält das `mfaEnabled`-Feld am gecachten User mit der Präferenz konsistent. */
+  async setMfaEnabledFlag(enabled: boolean): Promise<User | null> {
     const user = await StorageService.get<User>(STORAGE_KEYS.USER);
-    if (user) await StorageService.set(STORAGE_KEYS.USER, { ...user, mfaEnabled: false });
+    if (!user) return null;
+    const updated = { ...user, mfaEnabled: enabled };
+    await StorageService.set(STORAGE_KEYS.USER, updated);
+    return updated;
   },
 
   async logout(): Promise<void> {
@@ -170,8 +199,11 @@ export const AuthService = {
     await StorageService.remove(STORAGE_KEYS.AUTH_TOKEN);
     await StorageService.remove(STORAGE_KEYS.REFRESH_TOKEN);
     await StorageService.remove(STORAGE_KEYS.TOKEN_EXPIRES_AT);
+    // MFA_VERIFIED ist sitzungsbezogen → zurücksetzen, damit beim nächsten Login
+    // erneut der Code abgefragt wird.
     await StorageService.remove(STORAGE_KEYS.MFA_VERIFIED);
-    await StorageService.remove(STORAGE_KEYS.MFA_SECRET);
+    // MFA_SECRET und MFA_LOGIN_ENABLED bleiben gerätelokal erhalten, damit die
+    // einmal eingerichtete 2FA auch nach dem Logout weiter gilt.
   },
 
   async getCurrentUser(): Promise<User | null> {

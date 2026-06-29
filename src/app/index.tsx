@@ -54,11 +54,9 @@ export default function HomeScreen() {
     setLoading(true);
     try {
       const user = await AuthService.loginWithEmail(email, password);
-      // MFA Simulation: if requires MFA, we route via layout rules,
-      // but let's assume we set the user to trigger layout reaction
-      if (!user.mfaEnabled) {
-        setRequireMfaSetup(true);
-      }
+      // MFA-Gate: nur wenn 2FA eingerichtet UND beim Login aktiviert ist.
+      const { configured, enabled } = await AuthService.getMfaStatus();
+      setRequireMfaSetup(configured && enabled);
       setUser(user);
       setIsLoading(false);
     } catch (e) {

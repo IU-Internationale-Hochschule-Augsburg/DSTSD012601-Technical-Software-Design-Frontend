@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, TextInput, Button, useTheme, Snackbar, ActivityIndicator } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import QRCode from 'react-native-qrcode-svg';
 import { AuthService } from '../../services/auth.service';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function MfaSetupScreen() {
+  const params = useLocalSearchParams<{ mode?: string }>();
+  const forceSetup = params.mode === 'setup';
+
+  // null = noch unbestimmt, während der Modus ermittelt wird
+  const [verifyMode, setVerifyMode] = useState<boolean | null>(null);
   const [code, setCode] = useState('');
   const [otpAuthUri, setOtpAuthUri] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
@@ -16,22 +21,29 @@ export default function MfaSetupScreen() {
 
   const theme = useTheme();
   const router = useRouter();
-  const { setRequireMfaSetup } = useAuth();
+  const { setRequireMfaSetup, logout } = useAuth();
 
   useEffect(() => {
-    // TOTP-Secret + QR beim Laden generieren.
-    AuthService.setupMFA().then((data) => {
-      setSecret(data.secret);
-      setOtpAuthUri(data.otpAuthUri);
-    });
-  }, []);
+    (async () => {
+      const { configured, enabled } = await AuthService.getMfaStatus();
+      // Bereits eingerichtet + aktiv und keine erzwungene Neueinrichtung →
+      // nur Code abfragen (Login-Gate). Sonst: Einrichtung mit QR.
+      if (!forceSetup && configured && enabled) {
+        setVerifyMode(true);
+      } else {
+        setVerifyMode(false);
+        const data = await AuthService.setupMFA();
+        setSecret(data.secret);
+        setOtpAuthUri(data.otpAuthUri);
+      }
+    })();
+  }, [forceSetup]);
 
   const handleVerify = async () => {
     if (code.length !== 6) {
       setError('Der Code muss 6 Ziffern lang sein.');
       return;
     }
-
     setLoading(true);
     try {
       const isValid = await AuthService.verifyMFA(code);
@@ -48,6 +60,7 @@ export default function MfaSetupScreen() {
     }
   };
 
+  // Setup-Modus: Einrichtung überspringen (MFA bleibt deaktiviert).
   const handleSkip = async () => {
     setSkipping(true);
     try {
@@ -59,28 +72,49 @@ export default function MfaSetupScreen() {
     }
   };
 
+  // Verify-Modus: kein Code zur Hand → abmelden.
+  const handleCancelToLogout = async () => {
+    setSkipping(true);
+    try {
+      setRequireMfaSetup(false);
+      await logout();
+    } finally {
+      setSkipping(false);
+    }
+  };
+
+  if (verifyMode === null) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <ActivityIndicator />
+      </View>
+    );
+  }
+
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
-        MFA Einrichten
+        {verifyMode ? 'Anmeldung bestätigen' : 'MFA Einrichten'}
       </Text>
 
       <Text variant="bodyLarge" style={styles.description}>
-        Scannen Sie diesen Code in Ihrer Authenticator-App (z.B. Google Authenticator) oder geben
-        Sie den Secret-Schlüssel manuell ein.
+        {verifyMode
+          ? 'Geben Sie den 6-stelligen Code aus Ihrer Authenticator-App ein, um sich anzumelden.'
+          : 'Scannen Sie diesen Code in Ihrer Authenticator-App (z.B. Google Authenticator) oder geben Sie den Secret-Schlüssel manuell ein.'}
       </Text>
 
-      <View style={[styles.qrBox, { backgroundColor: '#fff', borderColor: theme.colors.outline }]}>
-        {otpAuthUri ? (
-          <QRCode value={otpAuthUri} size={184} />
-        ) : (
-          <ActivityIndicator />
-        )}
-      </View>
-
-      <Text variant="bodyMedium" style={styles.secretText}>
-        Secret: <Text style={{ fontWeight: 'bold' }}>{secret ?? '…'}</Text>
-      </Text>
+      {!verifyMode && (
+        <>
+          <View
+            style={[styles.qrBox, { backgroundColor: '#fff', borderColor: theme.colors.outline }]}
+          >
+            {otpAuthUri ? <QRCode value={otpAuthUri} size={184} /> : <ActivityIndicator />}
+          </View>
+          <Text variant="bodyMedium" style={styles.secretText}>
+            Secret: <Text style={{ fontWeight: 'bold' }}>{secret ?? '…'}</Text>
+          </Text>
+        </>
+      )}
 
       <TextInput
         mode="outlined"
@@ -99,17 +133,17 @@ export default function MfaSetupScreen() {
         disabled={loading || skipping}
         style={styles.button}
       >
-        Bestätigen
+        {verifyMode ? 'Anmelden' : 'Bestätigen'}
       </Button>
 
       <Button
         mode="text"
-        onPress={handleSkip}
+        onPress={verifyMode ? handleCancelToLogout : handleSkip}
         loading={skipping}
         disabled={loading || skipping}
         style={styles.skipButton}
       >
-        Überspringen
+        {verifyMode ? 'Abmelden' : 'Überspringen'}
       </Button>
 
       <Snackbar visible={!!error} onDismiss={() => setError(null)}>

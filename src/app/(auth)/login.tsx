@@ -27,14 +27,12 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const user = await AuthService.loginWithEmail(email, password);
-      // MFA Simulation: if requires MFA, we route via layout rules, 
-      // but let's assume we set the user to trigger layout reaction
-      if (!user.mfaEnabled) {
-          setRequireMfaSetup(true);
-      }
+      // MFA-Gate: nur wenn 2FA eingerichtet UND beim Login aktiviert ist.
+      // Die Navigation übernimmt der Guard im Root-Layout.
+      const { configured, enabled } = await AuthService.getMfaStatus();
+      setRequireMfaSetup(configured && enabled);
       setUser(user);
       setIsLoading(false);
-      router.replace('/(auth)/mfa-setup');
     } catch (e) {
       setError('Login fehlgeschlagen. Bitte überprüfen Sie Ihre Daten.');
     } finally {

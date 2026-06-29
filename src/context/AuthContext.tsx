@@ -33,6 +33,12 @@ const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const currentUser = await AuthService.getCurrentUser();
         handleSetUser(currentUser);
+        // Bei aktiver 2FA muss der Code auch beim (Auto-)Start erneut bestätigt
+        // werden → MFA-Gate öffnen.
+        if (currentUser) {
+          const { configured, enabled } = await AuthService.getMfaStatus();
+          if (configured && enabled) setRequireMfaSetup(true);
+        }
       } catch (error) {
         console.error('Failed to load user session', error);
       } finally {
