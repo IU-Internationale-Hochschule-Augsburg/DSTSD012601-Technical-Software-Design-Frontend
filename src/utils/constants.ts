@@ -10,9 +10,16 @@ export const STORAGE_KEYS = {
   USER: '@abotracker/user',
   THEME: '@abotracker/theme',
   AUTH_TOKEN: '@abotracker/auth_token',
+  REFRESH_TOKEN: '@abotracker/refresh_token',
+  TOKEN_EXPIRES_AT: '@abotracker/token_expires_at',
   MFA_VERIFIED: '@abotracker/mfa_verified',
   ONBOARDING_COMPLETE: '@abotracker/onboarding_complete',
 } as const;
+
+// ─── API ────────────────────────────────────────────────────────────────────
+
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ?? 'https://subscription-control.oberndt.de';
 
 // ─── OneSignal ──────────────────────────────────────────────────────────────
 
