@@ -4,12 +4,18 @@ import { Text, useTheme, Button, Avatar, List, Switch } from 'react-native-paper
 import { useAuth } from '../../hooks/useAuth';
 import { ThemeContext } from '../../context/ThemeContext';
 import { APP_VERSION } from '../../utils/constants';
+import { useRouter} from "expo-router";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme } = React.useContext(ThemeContext);
   const theme = useTheme();
+    const router = useRouter();
 
+  function logUserOut(){
+        localStorage.clear();
+        router.replace('/login');
+  }
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
@@ -46,7 +52,7 @@ export default function ProfileScreen() {
         <Button 
           mode="outlined" 
           icon="logout" 
-          onPress={logout}
+          onPress={logUserOut}
           textColor={theme.colors.error}
           style={{ borderColor: theme.colors.error }}
         >

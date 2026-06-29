@@ -3,6 +3,10 @@ import { StyleSheet, View, Platform } from 'react-native';
 import { Button, useTheme, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthService } from '../services/auth.service';
+import { useGoogleAuth } from '../hooks/useGoogleAuth';
+import { useAuth } from '../hooks/useAuth';
+import { AuthProvider, type User } from '../types';
+import { STANDALONE } from '../utils/constants';
 
 interface Props {
   onSuccess: () => void;
@@ -11,34 +15,64 @@ interface Props {
 
 export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   const theme = useTheme();
-  const [loading, setLoading] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { setUser, setIsLoading } = useAuth();
+  const { signIn: googleSignIn, isLoading: googleLoading, error: googleError, user: googleUser } = useGoogleAuth();
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleError, setAppleError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    // If not in standalone mode and googleUser is fetched from Google SSO redirect callback,
+    // set the user in the auth context. The navigation guard in _layout.tsx will then
+    // automatically redirect to the dashboard.
+    if (!STANDALONE && googleUser) {
+      const appUser: User = {
+        id: googleUser.id,
+        email: googleUser.email,
+        displayName: googleUser.name,
+        avatarUrl: googleUser.picture,
+        provider: AuthProvider.GOOGLE,
+        mfaEnabled: true,
+        createdAt: new Date().toISOString(),
+      };
+      setUser(appUser);
+      setIsLoading(false);
+      // No onSuccess() here – _layout.tsx navigation guard handles redirect automatically
+    }
+  }, [googleUser, setUser, setIsLoading]);
 
   const handleGoogle = async () => {
-    setLoading('google');
-    try {
-      await AuthService.loginWithGoogle();
-      onSuccess();
-    } catch (e) {
-      setError('Google Login fehlgeschlagen.');
-    } finally {
-      setLoading(null);
+    if (STANDALONE) {
+      try {
+        const user = await AuthService.loginWithGoogle();
+        setUser(user);
+        onSuccess();
+      } catch (e) {
+        console.error('Google Login error:', e);
+      }
+    } else {
+      try {
+        await googleSignIn();
+      } catch (e) {
+        console.error('Google Sign-In Error:', e);
+      }
     }
   };
 
   const handleApple = async () => {
-    setLoading('apple');
+    setAppleLoading(true);
     try {
-      await AuthService.loginWithApple();
+      const user = await AuthService.loginWithApple();
+      setUser(user);
       onSuccess();
     } catch (e) {
-      setError('Apple Login fehlgeschlagen.');
+      setAppleError('Apple Login fehlgeschlagen.');
     } finally {
-      setLoading(null);
+      setAppleLoading(false);
     }
   };
 
   const labelPrefix = mode === 'login' ? 'Anmelden mit' : 'Registrieren mit';
+  const displayError = googleError || appleError;
 
   return (
     <View style={styles.container}>
@@ -46,35 +80,20 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
         mode="outlined"
         icon={() => <MaterialCommunityIcons name="google" size={20} color={theme.colors.error} />}
         onPress={handleGoogle}
-        loading={loading === 'google'}
-        disabled={loading !== null}
+        loading={googleLoading}
+        disabled={googleLoading || appleLoading}
         style={styles.button}
       >
-        {labelPrefix} Google
+        {googleLoading ? '' : `${labelPrefix} Google`}
       </Button>
-
-      {/* Apple is mostly relevant on iOS devices based on Expo guidelines */}
-      {Platform.OS !== 'android' && (
-        <Button
-          mode="contained"
-          buttonColor="#000000"
-          textColor="#FFFFFF"
-          icon={() => <MaterialCommunityIcons name="apple" size={20} color="#FFFFFF" />}
-          onPress={handleApple}
-          loading={loading === 'apple'}
-          disabled={loading !== null}
-          style={styles.button}
-        >
-          {labelPrefix} Apple
-        </Button>
-      )}
-
       <Snackbar
-        visible={error !== null}
-        onDismiss={() => setError(null)}
+        visible={displayError !== null}
+        onDismiss={() => {
+          setAppleError(null);
+        }}
         duration={3000}
       >
-        {error}
+        {displayError}
       </Snackbar>
     </View>
   );
@@ -84,7 +103,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     paddingVertical: 16,
-    gap: 12, // React Native 0.71+ handles gap
+    gap: 12,
   },
   button: {
     borderRadius: 8,

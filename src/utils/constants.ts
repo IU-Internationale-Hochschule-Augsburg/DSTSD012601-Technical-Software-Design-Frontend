@@ -1,7 +1,8 @@
 // ─── App Constants ──────────────────────────────────────────────────────────
 
 export const APP_NAME = 'AboTracker';
-export const APP_VERSION = '1.0.0';
+export const APP_VERSION = '0.1.5';
+export const STANDALONE = false;
 
 // ─── Storage Keys ───────────────────────────────────────────────────────────
 
