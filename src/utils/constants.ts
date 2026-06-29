@@ -12,6 +12,7 @@ export const STANDALONE = false;
 
 export const STORAGE_KEYS = {
   SUBSCRIPTIONS: '@abotracker/subscriptions',
+  SUBSCRIPTIONS_QUEUE: '@abotracker/subscriptions_queue',
   USER: '@abotracker/user',
   THEME: '@abotracker/theme',
   AUTH_TOKEN: '@abotracker/auth_token',

@@ -1,5 +1,20 @@
-import { API_BASE_URL, STORAGE_KEYS } from '../utils/constants';
+import { API_BASE_URL, API_TIMEOUT_MS, STORAGE_KEYS } from '../utils/constants';
 import { StorageService } from './storage.service';
+
+/**
+ * fetch mit Timeout. Bricht nach `API_TIMEOUT_MS` ab, damit ein totes/langsames
+ * Netz die UI nicht blockiert (wichtig für Offline-First). Ein Abbruch wird vom
+ * Aufrufer wie ein Netzwerkfehler behandelt.
+ */
+async function fetchWithTimeout(url: string, init: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 interface ApiResponse<T> {
   success: boolean;
@@ -34,7 +49,7 @@ async function refreshAccessToken(): Promise<string | null> {
     if (!refreshToken) return null;
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/Auth/refresh`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/api/Auth/refresh`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ refreshToken }),
@@ -74,11 +89,17 @@ export const ApiClient = {
       if (token) headers.Authorization = `Bearer ${token}`;
     }
 
-    const res = await fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    let res: Response;
+    try {
+      res = await fetchWithTimeout(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      });
+    } catch {
+      // Netzwerkfehler oder Timeout (AbortError) → als Offline behandeln (status 0).
+      throw new ApiError('Network request failed', 0);
+    }
 
     if (res.status === 401 && auth && !_retry) {
       const newToken = await refreshAccessToken();

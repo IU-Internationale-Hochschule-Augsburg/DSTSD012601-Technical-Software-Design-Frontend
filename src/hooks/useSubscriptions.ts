@@ -21,39 +21,51 @@ export const useSubscriptions = () => {
   // Verhindert State-Updates nach Unmount.
   const mounted = useRef(true);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh') => {
-    if (mode === 'refresh') setSyncing(true);
+  /** Hintergrund-Sync: pusht Offline-Änderungen und zieht den Serverstand. */
+  const sync = useCallback(async () => {
+    if (mounted.current) setSyncing(true);
     try {
-      const data = await SubscriptionService.getSubscriptions();
+      const synced = await SubscriptionService.sync();
       if (mounted.current) {
-        setSubscriptions(data);
+        setSubscriptions(synced);
         setError(null);
       }
     } catch {
-      if (mounted.current) setError('Fehler beim Laden der Abonnements.');
+      // Offline-First: Sync-Fehler sind nicht fatal, lokaler Stand bleibt.
+      if (mounted.current) setError('Synchronisierung fehlgeschlagen (offline).');
     } finally {
-      if (mounted.current) {
-        if (mode === 'initial') setLoading(false);
-        else setSyncing(false);
-      }
+      if (mounted.current) setSyncing(false);
     }
   }, []);
 
   useEffect(() => {
     mounted.current = true;
-    void load('initial');
+    (async () => {
+      // 1) Lokalen Stand SOFORT anzeigen (kein Warten aufs Netz).
+      const cached = await SubscriptionService.getCached();
+      if (mounted.current) {
+        setSubscriptions(cached);
+        setLoading(false);
+      }
+      // 2) Danach im Hintergrund synchronisieren.
+      void sync();
+    })();
     return () => {
       mounted.current = false;
     };
-  }, [load]);
+  }, [sync]);
 
-  const refresh = useCallback(() => load('refresh'), [load]);
+  const refresh = useCallback(() => sync(), [sync]);
 
-  const addSubscription = useCallback(async (sub: Subscription) => {
-    const created = await SubscriptionService.addSubscription(sub);
-    if (mounted.current) setSubscriptions((prev) => [...prev, created]);
-    return created;
-  }, []);
+  const addSubscription = useCallback(
+    async (sub: Subscription) => {
+      const created = await SubscriptionService.addSubscription(sub);
+      if (mounted.current) setSubscriptions((prev) => [...prev, created]);
+      void sync(); // Best-effort sofort pushen, falls online.
+      return created;
+    },
+    [sync]
+  );
 
   const updateSubscription = useCallback(
     async (id: string, updates: Partial<Subscription>) => {
@@ -61,16 +73,21 @@ export const useSubscriptions = () => {
       if (updated && mounted.current) {
         setSubscriptions((prev) => prev.map((s) => (s.id === id ? updated : s)));
       }
+      void sync();
       return updated;
     },
-    []
+    [sync]
   );
 
-  const deleteSubscription = useCallback(async (id: string) => {
-    await SubscriptionService.deleteSubscription(id);
-    if (mounted.current) setSubscriptions((prev) => prev.filter((s) => s.id !== id));
-    return true;
-  }, []);
+  const deleteSubscription = useCallback(
+    async (id: string) => {
+      await SubscriptionService.deleteSubscription(id);
+      if (mounted.current) setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      void sync();
+      return true;
+    },
+    [sync]
+  );
 
   const getFilteredAndSorted = useCallback(
     (filter: FilterOptions, sort: SortOption) => {
