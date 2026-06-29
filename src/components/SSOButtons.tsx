@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { StyleSheet, View, Platform } from 'react-native';
 import { Button, useTheme, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { AuthService } from '../services/auth.service';
 import { useGoogleAuth } from '../hooks/useGoogleAuth';
 import { useAuth } from '../hooks/useAuth';
 import { AuthProvider, type User } from '../types';
+import { STANDALONE } from '../utils/constants';
 
 interface Props {
   onSuccess: () => void;
@@ -13,44 +15,53 @@ interface Props {
 
 export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   const theme = useTheme();
-  const { signIn: googleSignIn, isLoading: googleLoading, error: googleError, user: googleUser } = useGoogleAuth();
   const { setUser, setIsLoading } = useAuth();
-  const [appleLoading, setAppleLoading] = React.useState(false);
-  const [appleError, setAppleError] = React.useState<string | null>(null);
+  const { signIn: googleSignIn, isLoading: googleLoading, error: googleError, user: googleUser } = useGoogleAuth();
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleError, setAppleError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    console.log('googleUser:', googleUser);
-    console.log('setIsLoading type:', typeof setIsLoading);
-    // Wenn Google-User vorhanden ist, setze ihn in den Auth-Context
-    if (googleUser) {
+    // If not in standalone mode and googleUser is fetched from Google SSO redirect callback
+    if (!STANDALONE && googleUser) {
       const appUser: User = {
         id: googleUser.id,
         email: googleUser.email,
         displayName: googleUser.name,
         avatarUrl: googleUser.picture,
         provider: AuthProvider.GOOGLE,
-        mfaEnabled: true, // Google SSO-User benötigen MFA
+        mfaEnabled: true,
         createdAt: new Date().toISOString(),
       };
       setUser(appUser);
       setIsLoading(false);
+      onSuccess();
     }
-  }, [googleUser, setUser, onSuccess]);
+  }, [googleUser, setUser, setIsLoading, onSuccess]);
 
   const handleGoogle = async () => {
-    try {
-      await googleSignIn();
-    } catch (e) {
-      console.error('Google Login error:', e);
+    if (STANDALONE) {
+      try {
+        const user = await AuthService.loginWithGoogle();
+        setUser(user);
+        onSuccess();
+      } catch (e) {
+        console.error('Google Login error:', e);
+      }
+    } else {
+      try {
+        await googleSignIn();
+      } catch (e) {
+        console.error('Google Sign-In Error:', e);
+      }
     }
   };
 
   const handleApple = async () => {
     setAppleLoading(true);
     try {
-      // Stub: Apple Login würde hier implementiert werden
-      // Für jetzt: Mock implementation
-      setAppleError('Apple Login wird noch nicht unterstützt.');
+      const user = await AuthService.loginWithApple();
+      setUser(user);
+      onSuccess();
     } catch (e) {
       setAppleError('Apple Login fehlgeschlagen.');
     } finally {
@@ -59,7 +70,6 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   };
 
   const labelPrefix = mode === 'login' ? 'Anmelden mit' : 'Registrieren mit';
-
   const displayError = googleError || appleError;
 
   return (
@@ -74,12 +84,10 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
       >
         {googleLoading ? '' : `${labelPrefix} Google`}
       </Button>
-
       <Snackbar
         visible={displayError !== null}
         onDismiss={() => {
           setAppleError(null);
-          // googleError wird durch useGoogleAuth selbst verwaltet
         }}
         duration={3000}
       >
@@ -93,7 +101,7 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     paddingVertical: 16,
-    gap: 12, // React Native 0.71+ handles gap
+    gap: 12,
   },
   button: {
     borderRadius: 8,

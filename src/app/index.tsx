@@ -92,7 +92,7 @@ export default function HomeScreen() {
               mode="outlined"
               label="E-Mail"
               value={email}
-              onSubmitEditing={setEmail}
+              onChangeText={setEmail}
               autoCapitalize="none"
               keyboardType="email-address"
               style={styles.input}
@@ -103,7 +103,7 @@ export default function HomeScreen() {
               mode="outlined"
               label="Passwort"
               value={password}
-              onSubmitEditing={setPassword}
+              onChangeText={setPassword}
               secureTextEntry
               style={styles.input}
               accessibilityLabel="Passwort Eingabefeld"
