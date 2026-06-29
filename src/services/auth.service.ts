@@ -83,10 +83,6 @@ export const AuthService = {
     throw new Error('Bitte SSOButtons verwenden — Google-Flow muss vom UI angestoßen werden.');
   },
 
-  async loginWithApple(): Promise<User> {
-    throw new Error('Apple SSO ist noch nicht implementiert.');
-  },
-
   /**
    * Verarbeitet ein Google-Profil: erzeugt ein deterministisches Hash-Passwort,
    * legt den User beim Backend an (idempotent — 409 wird ignoriert) und loggt ein.

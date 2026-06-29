@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Button, useTheme, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Google from 'expo-auth-session/providers/google';
@@ -76,18 +76,6 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
     }
   };
 
-  const handleApple = async () => {
-    setLoading('apple');
-    try {
-      await AuthService.loginWithApple();
-      onSuccess();
-    } catch {
-      setError('Apple Login ist noch nicht verfügbar.');
-    } finally {
-      setLoading(null);
-    }
-  };
-
   const labelPrefix = mode === 'login' ? 'Anmelden mit' : 'Registrieren mit';
 
   return (
@@ -102,21 +90,6 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
       >
         {labelPrefix} Google
       </Button>
-
-      {Platform.OS !== 'android' && (
-        <Button
-          mode="contained"
-          buttonColor="#000000"
-          textColor="#FFFFFF"
-          icon={() => <MaterialCommunityIcons name="apple" size={20} color="#FFFFFF" />}
-          onPress={handleApple}
-          loading={loading === 'apple'}
-          disabled={loading !== null}
-          style={styles.button}
-        >
-          {labelPrefix} Apple
-        </Button>
-      )}
 
       <Snackbar visible={error !== null} onDismiss={() => setError(null)} duration={3000}>
         {error}

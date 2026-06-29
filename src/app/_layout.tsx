@@ -20,11 +20,6 @@ const RootLayoutNav = () => {
   const segments = useSegments();
   const router = useRouter();
 
-
-  useEffect(() => {
-    console.log('segments:', segments, 'user:', !!user, 'isLoading:', isLoading);
-  }, [segments, user, isLoading]);
-
   // Navigation Logic based on Auth State
   useEffect(() => {
     if (isLoading) return;

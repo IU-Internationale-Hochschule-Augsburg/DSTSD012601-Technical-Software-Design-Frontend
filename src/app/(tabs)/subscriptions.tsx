@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl } from 'react-native';
-import { useTheme, FAB, Modal, Portal, Button, Text } from 'react-native-paper';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, FlatList, RefreshControl, type ListRenderItem } from 'react-native';
+import { useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
 import { FilterBar } from '../../components/FilterBar';
 import { SubscriptionCard } from '../../components/SubscriptionCard';
 import { EmptyState } from '../../components/EmptyState';
 import type { Subscription, FilterOptions, SortOption, SortField } from '../../types';
+
+const keyExtractor = (item: Subscription) => item.id;
 
 export default function SubscriptionsScreen() {
   const { loading, syncing, refresh, getFilteredAndSorted } = useSubscriptions();
@@ -16,19 +18,22 @@ export default function SubscriptionsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  
-  // Real implementation would have a filter modal.
-  const filterOptions: FilterOptions = {
-    categories: [], // Empty means all
-    searchQuery,
-  };
 
-  const sortOption: SortOption = {
-    field: sortField,
-    direction: sortDirection,
-  };
+  const filterOptions: FilterOptions = useMemo(
+    () => ({ categories: [], searchQuery }),
+    [searchQuery]
+  );
 
-  const data = getFilteredAndSorted(filterOptions, sortOption);
+  const sortOption: SortOption = useMemo(
+    () => ({ field: sortField, direction: sortDirection }),
+    [sortField, sortDirection]
+  );
+
+  // Nur neu filtern/sortieren, wenn sich Daten, Filter oder Sortierung ändern.
+  const data = useMemo(
+    () => getFilteredAndSorted(filterOptions, sortOption),
+    [getFilteredAndSorted, filterOptions, sortOption]
+  );
 
   const toggleSort = () => {
     // Cycle logic: Name asc -> Amount desc -> NextPaymentDate asc
@@ -44,9 +49,23 @@ export default function SubscriptionsScreen() {
     }
   };
 
-  const navigateToSubscription = (sub: Subscription) => {
-    router.push(`/subscription/${sub.id}`);
-  };
+  const navigateToSubscription = useCallback(
+    (sub: Subscription) => {
+      router.push(`/subscription/${sub.id}`);
+    },
+    [router]
+  );
+
+  const renderItem: ListRenderItem<Subscription> = useCallback(
+    ({ item }) => (
+      <SubscriptionCard
+        subscription={item}
+        onPress={() => navigateToSubscription(item)}
+        onEdit={() => navigateToSubscription(item)}
+      />
+    ),
+    [navigateToSubscription]
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -61,14 +80,12 @@ export default function SubscriptionsScreen() {
 
       <FlatList
         data={data}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <SubscriptionCard 
-            subscription={item} 
-            onPress={() => navigateToSubscription(item)} 
-            onEdit={() => navigateToSubscription(item)}
-          />
-        )}
+        keyExtractor={keyExtractor}
+        renderItem={renderItem}
+        removeClippedSubviews
+        initialNumToRender={8}
+        maxToRenderPerBatch={8}
+        windowSize={11}
         contentContainerStyle={styles.listContent}
         refreshControl={
           <RefreshControl refreshing={syncing} onRefresh={refresh} />

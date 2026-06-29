@@ -1,21 +1,27 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, useTheme, Button, Avatar, List, Switch } from 'react-native-paper';
 import { useAuth } from '../../hooks/useAuth';
 import { ThemeContext } from '../../context/ThemeContext';
 import { APP_VERSION } from '../../utils/constants';
-import { useRouter} from "expo-router";
 
 export default function ProfileScreen() {
   const { user, logout } = useAuth();
   const { themeMode, toggleTheme } = React.useContext(ThemeContext);
   const theme = useTheme();
-    const router = useRouter();
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  function logUserOut(){
-        localStorage.clear();
-        router.replace('/login');
-  }
+  // Echtes Abmelden: Tokens + Session löschen (Backend-Logout inkl.).
+  // Der Navigation-Guard im Root-Layout leitet danach automatisch zum Login.
+  const logUserOut = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+    } finally {
+      setLoggingOut(false);
+    }
+  };
+
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
@@ -39,20 +45,15 @@ export default function ProfileScreen() {
           left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
           right={() => <Switch value={themeMode === 'dark'} onValueChange={toggleTheme} />}
         />
-        <List.Item
-          title="2-Faktor-Authentifizierung"
-          description={user?.mfaEnabled ? 'Aktiviert' : 'Deaktiviert'}
-          left={(props) => <List.Icon {...props} icon="shield-lock-outline" />}
-          right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => { /* Navigate to MFA settings */ }}
-        />
       </List.Section>
 
       <View style={styles.footer}>
-        <Button 
-          mode="outlined" 
-          icon="logout" 
+        <Button
+          mode="outlined"
+          icon="logout"
           onPress={logUserOut}
+          loading={loggingOut}
+          disabled={loggingOut}
           textColor={theme.colors.error}
           style={{ borderColor: theme.colors.error }}
         >

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
 import { Text, useTheme, FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -15,27 +15,26 @@ export default function DashboardScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  // Basic Derived State Computations
-  const totalSpendings = subscriptions?.reduce((sum, sub) => sum + sub.amount, 0) ?? 0;
+  // Abgeleitete Werte nur neu berechnen, wenn sich die Abos ändern.
+  const { totalSpendings, upcomingPayments, trialPeriods, upcomingCancellations } = useMemo(() => {
+    const sortedByPayment = [...subscriptions].sort(
+      (a, b) => new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime()
+    );
 
-  // Sort by date to get closest first
-  const sortedSubs = [...(subscriptions || [])].sort((a, b) =>
-      new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime()
-  );
-
-  const upcomingPayments = sortedSubs.slice(0, 5);
-  const trialPeriods = sortedSubs.filter(s => s.isTrialPeriod).slice(0, 5);
-
-  // Assuming nextCancellationDate exists for cancellation deadlines
-  const upcomingCancellations = [...(subscriptions || [])]
-      .filter(s => s.nextCancellationDate)
-      .sort((a, b) => new Date(a.nextCancellationDate!).getTime() - new Date(b.nextCancellationDate!).getTime())
-      .slice(0, 5);
-
-  const navigateToSubscription = (sub: Subscription) => {
-    // In actual implementation would navigate to detail
-    // router.push(`/subscription/${sub.id}`);
-  };
+    return {
+      totalSpendings: subscriptions.reduce((sum, sub) => sum + sub.amount, 0),
+      upcomingPayments: sortedByPayment.slice(0, 5),
+      trialPeriods: sortedByPayment.filter((s) => s.isTrialPeriod).slice(0, 5),
+      upcomingCancellations: subscriptions
+        .filter((s) => s.nextCancellationDate)
+        .sort(
+          (a, b) =>
+            new Date(a.nextCancellationDate!).getTime() -
+            new Date(b.nextCancellationDate!).getTime()
+        )
+        .slice(0, 5),
+    };
+  }, [subscriptions]);
 
   return (
       <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
