@@ -11,15 +11,18 @@ interface Props {
   sortField: SortField;
   sortDirection: SortDirection;
   onSortToggle: () => void;
+  /** Anzahl aktiver Kategorie-Filter (für die Chip-Beschriftung). */
+  categoryCount?: number;
 }
 
-export const FilterBar = ({ 
-  searchQuery, 
-  onSearchChange, 
+export const FilterBar = ({
+  searchQuery,
+  onSearchChange,
   onFilterPress,
   sortField,
   sortDirection,
-  onSortToggle 
+  onSortToggle,
+  categoryCount = 0,
 }: Props) => {
   const theme = useTheme();
 
@@ -33,13 +36,21 @@ export const FilterBar = ({
         elevation={1}
       />
       <View style={styles.chipsContainer}>
-        <Chip 
-          icon={() => <MaterialCommunityIcons name="filter-variant" size={18} color={theme.colors.onSurfaceVariant} />} 
+        <Chip
+          icon={() => (
+            <MaterialCommunityIcons
+              name="filter-variant"
+              size={18}
+              color={categoryCount > 0 ? theme.colors.onSecondaryContainer : theme.colors.onSurfaceVariant}
+            />
+          )}
           onPress={onFilterPress}
           mode="flat"
+          selected={categoryCount > 0}
+          showSelectedOverlay
           style={styles.chip}
         >
-          Kategorien
+          {categoryCount > 0 ? `Kategorien (${categoryCount})` : 'Kategorien'}
         </Chip>
         <Chip 
           icon={() => (

@@ -1,14 +1,29 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, type ListRenderItem } from 'react-native';
-import { useTheme, FAB } from 'react-native-paper';
+import {
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  ScrollView,
+  type ListRenderItem,
+} from 'react-native';
+import { useTheme, FAB, Portal, Dialog, Chip, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
 import { FilterBar } from '../../components/FilterBar';
 import { SubscriptionCard } from '../../components/SubscriptionCard';
 import { EmptyState } from '../../components/EmptyState';
-import type { Subscription, FilterOptions, SortOption, SortField } from '../../types';
+import {
+  CATEGORY_LABELS,
+  SubscriptionCategory,
+  type Subscription,
+  type FilterOptions,
+  type SortOption,
+  type SortField,
+} from '../../types';
 
 const keyExtractor = (item: Subscription) => item.id;
+const ALL_CATEGORIES = Object.values(SubscriptionCategory);
 
 export default function SubscriptionsScreen() {
   const { loading, syncing, refresh, getFilteredAndSorted } = useSubscriptions();
@@ -19,9 +34,18 @@ export default function SubscriptionsScreen() {
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [selectedCategories, setSelectedCategories] = useState<SubscriptionCategory[]>([]);
+
+  const toggleCategory = (cat: SubscriptionCategory) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+    );
+  };
+
   const filterOptions: FilterOptions = useMemo(
-    () => ({ categories: [], searchQuery }),
-    [searchQuery]
+    () => ({ categories: selectedCategories, searchQuery }),
+    [selectedCategories, searchQuery]
   );
 
   const sortOption: SortOption = useMemo(
@@ -72,19 +96,20 @@ export default function SubscriptionsScreen() {
       <FilterBar
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
-        onFilterPress={() => { /* Open filter modal */ }}
+        onFilterPress={() => setFilterVisible(true)}
         sortField={sortField}
         sortDirection={sortDirection}
         onSortToggle={toggleSort}
+        categoryCount={selectedCategories.length}
       />
 
       <FlatList
         data={data}
+        extraData={sortOption}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        removeClippedSubviews
-        initialNumToRender={8}
-        maxToRenderPerBatch={8}
+        initialNumToRender={10}
+        maxToRenderPerBatch={10}
         windowSize={11}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -106,6 +131,32 @@ export default function SubscriptionsScreen() {
         color={theme.colors.onPrimaryContainer}
         onPress={() => router.push('/subscription/add')}
       />
+
+      <Portal>
+        <Dialog visible={filterVisible} onDismiss={() => setFilterVisible(false)}>
+          <Dialog.Title>Nach Kategorie filtern</Dialog.Title>
+          <Dialog.ScrollArea>
+            <ScrollView contentContainerStyle={styles.chipWrap}>
+              {ALL_CATEGORIES.map((cat) => (
+                <Chip
+                  key={cat}
+                  mode={selectedCategories.includes(cat) ? 'flat' : 'outlined'}
+                  selected={selectedCategories.includes(cat)}
+                  showSelectedOverlay
+                  onPress={() => toggleCategory(cat)}
+                  style={styles.filterChip}
+                >
+                  {CATEGORY_LABELS[cat]}
+                </Chip>
+              ))}
+            </ScrollView>
+          </Dialog.ScrollArea>
+          <Dialog.Actions>
+            <Button onPress={() => setSelectedCategories([])}>Zurücksetzen</Button>
+            <Button onPress={() => setFilterVisible(false)}>Fertig</Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 }
@@ -116,6 +167,15 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingBottom: 80, // Space for FAB
+  },
+  chipWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    paddingVertical: 8,
+  },
+  filterChip: {
+    marginBottom: 4,
   },
   fab: {
     position: 'absolute',

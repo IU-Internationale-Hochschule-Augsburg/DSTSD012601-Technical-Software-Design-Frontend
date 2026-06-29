@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import type { Subscription, SortOption, FilterOptions } from '../types';
 import { SubscriptionService } from '../services/subscription.service';
 
@@ -57,6 +58,20 @@ export const useSubscriptions = () => {
 
   const refresh = useCallback(() => sync(), [sync]);
 
+  /** Liest nur den lokalen Cache neu ein (kein Netzwerk) – für sofortige Konsistenz. */
+  const reload = useCallback(async () => {
+    const cached = await SubscriptionService.getCached();
+    if (mounted.current) setSubscriptions(cached);
+  }, []);
+
+  // Beim (Wieder-)Fokussieren des Screens lokalen Stand übernehmen, damit
+  // Änderungen aus anderen Screens (z. B. Löschen im Detail) sofort sichtbar sind.
+  useFocusEffect(
+    useCallback(() => {
+      void reload();
+    }, [reload])
+  );
+
   const addSubscription = useCallback(
     async (sub: Subscription) => {
       const created = await SubscriptionService.addSubscription(sub);
@@ -81,8 +96,9 @@ export const useSubscriptions = () => {
 
   const deleteSubscription = useCallback(
     async (id: string) => {
-      await SubscriptionService.deleteSubscription(id);
+      // Optimistisch zuerst entfernen → UI reagiert sofort.
       if (mounted.current) setSubscriptions((prev) => prev.filter((s) => s.id !== id));
+      await SubscriptionService.deleteSubscription(id);
       void sync();
       return true;
     },
