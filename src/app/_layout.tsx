@@ -29,22 +29,30 @@ const RootLayoutNav = () => {
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
-    const inTabsGroup = segments[0] === '(tabs)';
+    // Cast to string[] because expo-router's generated union type doesn't include
+    // runtime-valid values like '' or 'index' for the root route.
+    const segs = segments as unknown as string[];
+    const inTabsGroup = segs[0] === '(tabs)';
+    const inAuthGroup = segs[0] === '(auth)';
+    const inSubscriptionGroup = segs[0] === 'subscription';
+    // Root path (src/app/index.tsx) is the login screen – treat as unauthenticated area
+    const onRootOrIndex = segs.length === 0 || segs[0] === '' || segs[0] === 'index';
+    const inUnauthenticatedArea = inAuthGroup || onRootOrIndex;
 
-    if (!user && !inAuthGroup) {
-      // User is not signed in and trying to access app
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      if (requireMfaSetup) {
-         router.replace('/(auth)/mfa-setup');
-      } else {
-         // User is signed in and trying to access auth screen
-         router.replace('/(tabs)');
+    if (user) {
+      // Logged-in user anywhere outside of tabs/subscription → send to dashboard
+      if (!inTabsGroup && !inSubscriptionGroup) {
+        if (requireMfaSetup) {
+          router.replace('/(auth)/mfa-setup');
+        } else {
+          router.replace('/(tabs)');
+        }
       }
-    }else if (user && !inTabsGroup && !inAuthGroup) {
-      // ← OAuth-Redirect landet hier (root-level, kein Auth, kein Tabs)
-      router.replace('/(tabs)');
+    } else {
+      // Logged-out user trying to access a protected area → send to login
+      if (!inUnauthenticatedArea) {
+        router.replace('/(auth)/login');
+      }
     }
   }, [user, isLoading, requireMfaSetup, segments]);
 

@@ -21,7 +21,9 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
   const [appleError, setAppleError] = useState<string | null>(null);
 
   React.useEffect(() => {
-    // If not in standalone mode and googleUser is fetched from Google SSO redirect callback
+    // If not in standalone mode and googleUser is fetched from Google SSO redirect callback,
+    // set the user in the auth context. The navigation guard in _layout.tsx will then
+    // automatically redirect to the dashboard.
     if (!STANDALONE && googleUser) {
       const appUser: User = {
         id: googleUser.id,
@@ -34,9 +36,9 @@ export const SSOButtons = ({ onSuccess, mode = 'login' }: Props) => {
       };
       setUser(appUser);
       setIsLoading(false);
-      onSuccess();
+      // No onSuccess() here – _layout.tsx navigation guard handles redirect automatically
     }
-  }, [googleUser, setUser, setIsLoading, onSuccess]);
+  }, [googleUser, setUser, setIsLoading]);
 
   const handleGoogle = async () => {
     if (STANDALONE) {
