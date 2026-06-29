@@ -95,28 +95,20 @@ export default function AddSubscriptionScreen() {
             style={styles.input}
          />
 
-         {/* Simplistic Category Selection */}
+         {/* Category Selection – die Item-Id ist der echte Enum-Wert */}
          <Text variant="labelMedium" style={{ marginBottom: 8, marginTop: 8, width: ' 100%' }}>Kategorie</Text>
              <AutocompleteDropdown
                  clearOnFocus={false}
                  closeOnBlur={true}
                  closeOnSubmit={false}
-                 initialValue={{ id: '2' }} // Example initial value
-                 onSelectItem={(val: any) => setCategory(val as SubscriptionCategory)}
-                 dataSet={[
-                     { id: '1', title: CATEGORY_LABELS[SubscriptionCategory.STREAMING] },
-                     { id: '2', title: CATEGORY_LABELS[SubscriptionCategory.MUSIC] },
-                     { id: '3', title: CATEGORY_LABELS[SubscriptionCategory.SOFTWARE] },
-                     { id: '4', title: CATEGORY_LABELS[SubscriptionCategory.FITNESS] },
-                     { id: '5', title: CATEGORY_LABELS[SubscriptionCategory.FOOD] },
-                     { id: '6', title: CATEGORY_LABELS[SubscriptionCategory.INSURANCE] },
-                     { id: '7', title: CATEGORY_LABELS[SubscriptionCategory.PHONE] },
-                     { id: '8', title: CATEGORY_LABELS[SubscriptionCategory.INTERNET] },
-                     { id: '9', title: CATEGORY_LABELS[SubscriptionCategory.CLOUD] },
-                     { id: '10', title: CATEGORY_LABELS[SubscriptionCategory.GAMING] },
-                     { id: '11', title: CATEGORY_LABELS[SubscriptionCategory.NEWS] },
-                     { id: '12', title: CATEGORY_LABELS[SubscriptionCategory.OTHER] },
-                 ]}
+                 initialValue={{ id: SubscriptionCategory.OTHER }}
+                 onSelectItem={(item) => {
+                   if (item?.id) setCategory(item.id as SubscriptionCategory);
+                 }}
+                 dataSet={Object.values(SubscriptionCategory).map((c) => ({
+                   id: c,
+                   title: CATEGORY_LABELS[c],
+                 }))}
              />
 
          <View style={styles.buttonRow}>

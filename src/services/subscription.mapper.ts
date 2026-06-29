@@ -129,19 +129,40 @@ export function invalidateCaches() {
   caches = null;
 }
 
+/**
+ * Normalisiert die Kategorie robust auf einen gültigen Enum-Wert.
+ * Akzeptiert: Enum-String, Label, oder ein Alt-/Dropdown-Objekt `{id,title}`.
+ */
+function normalizeCategory(local: unknown): SubscriptionCategory {
+  if (typeof local === 'string') {
+    if (local in CATEGORY_LABELS) return local as SubscriptionCategory;
+    const byLabel = (Object.entries(CATEGORY_LABELS) as [SubscriptionCategory, string][]).find(
+      ([, l]) => l.toLowerCase() === local.toLowerCase()
+    );
+    return byLabel ? byLabel[0] : SubscriptionCategory.OTHER;
+  }
+  if (local && typeof local === 'object') {
+    const title = (local as { title?: unknown }).title;
+    if (typeof title === 'string') return normalizeCategory(title);
+  }
+  return SubscriptionCategory.OTHER;
+}
+
 async function resolveCategoryId(local: SubscriptionCategory): Promise<string> {
   const c = await loadCaches();
-  const label = CATEGORY_LABELS[local];
+  const key = normalizeCategory(local);
+  const label = CATEGORY_LABELS[key];
+
   const existing = c.categories.find(
     (cat) =>
       cat.name.toLowerCase() === label.toLowerCase() ||
-      cat.name.toLowerCase() === local.toLowerCase()
+      cat.name.toLowerCase() === key.toLowerCase()
   );
   if (existing) return existing.id;
 
   const created = await ApiClient.post<CategoryResponse>('/api/Categories', {
     name: label,
-    icon: local.toLowerCase(),
+    icon: key.toLowerCase(),
   });
   if (created) c.categories.push(created);
   return created!.id;

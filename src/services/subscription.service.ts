@@ -67,6 +67,19 @@ function isOfflineLike(e: unknown): boolean {
   return true;
 }
 
+// Serialisiert alle sync()-Läufe: gleichzeitige Trigger (Mutation + Screen-Mounts,
+// StrictMode-Doppel-Effekt) würden sonst dieselbe Queue-Operation parallel pushen
+// und doppelt anlegen. Jeder Lauf wartet auf den vorherigen.
+let syncLock: Promise<unknown> = Promise.resolve();
+function runExclusive<T>(fn: () => Promise<T>): Promise<T> {
+  const next = syncLock.then(fn, fn);
+  syncLock = next.then(
+    () => undefined,
+    () => undefined
+  );
+  return next;
+}
+
 /**
  * Fügt eine Operation idempotent in die Queue ein und dedupliziert pro Id, damit
  * die Queue nicht wächst und Reihenfolge-Konflikte vermieden werden:
@@ -135,14 +148,15 @@ async function flushQueue(userId: string): Promise<boolean> {
       }
       queue = remove(queue, op);
     } catch (e) {
-      if (isOfflineLike(e)) {
-        // Noch offline → Rest der Queue behalten, später erneut versuchen.
+      if (e instanceof ApiError && (e.status >= 500 || e.status === 0)) {
+        // Echtes Netzwerk-/Serverproblem → Rest der Queue behalten, später erneut.
         await writeCache(cache);
         await writeQueue(queue);
         return false;
       }
-      // Fachlicher Fehler (z. B. 400/409) → Operation verwerfen, sonst blockiert
-      // sie die Queue dauerhaft.
+      // Fachlicher Fehler (4xx) oder unerwarteter Fehler (Bug) → sichtbar machen
+      // und Operation verwerfen, damit sie die Queue nicht dauerhaft blockiert.
+      console.warn(`[SubscriptionSync] ${op.kind} ${op.id} verworfen:`, e);
       queue = remove(queue, op);
     }
   }
@@ -170,33 +184,35 @@ export const SubscriptionService = {
    * Bei fehlendem Login oder offline bleibt der lokale Stand erhalten.
    */
   async sync(): Promise<Subscription[]> {
-    const userId = await currentUserId();
-    if (!userId) return readCache();
+    return runExclusive(async () => {
+      const userId = await currentUserId();
+      if (!userId) return readCache();
 
-    const flushed = await flushQueue(userId);
-    if (!flushed) return readCache();
+      const flushed = await flushQueue(userId);
+      if (!flushed) return readCache();
 
-    try {
-      const remote = await ApiClient.get<SubscriptionBackend[]>(`${ENDPOINT}/by-user/${userId}`);
-      const serverList = (remote ?? []).map(backendToLocal);
+      try {
+        const remote = await ApiClient.get<SubscriptionBackend[]>(`${ENDPOINT}/by-user/${userId}`);
+        const serverList = (remote ?? []).map(backendToLocal);
 
-      // Lokale Einträge bewahren, die noch in der Queue hängen (z. B. offline
-      // angelegt und noch nicht gepusht), damit der Pull sie nicht verschluckt.
-      const queue = await readQueue();
-      const pendingIds = new Set(queue.map((o) => o.id));
-      const cache = await readCache();
-      const pendingItems = cache.filter((s) => pendingIds.has(s.id));
+        // Lokale Einträge bewahren, die noch in der Queue hängen (z. B. offline
+        // angelegt und noch nicht gepusht), damit der Pull sie nicht verschluckt.
+        const queue = await readQueue();
+        const pendingIds = new Set(queue.map((o) => o.id));
+        const cache = await readCache();
+        const pendingItems = cache.filter((s) => pendingIds.has(s.id));
 
-      const merged = [
-        ...serverList,
-        ...pendingItems.filter((p) => !serverList.some((s) => s.id === p.id)),
-      ];
-      await writeCache(merged);
-      return merged;
-    } catch (e) {
-      if (isOfflineLike(e)) return readCache();
-      throw e;
-    }
+        const merged = [
+          ...serverList,
+          ...pendingItems.filter((p) => !serverList.some((s) => s.id === p.id)),
+        ];
+        await writeCache(merged);
+        return merged;
+      } catch (e) {
+        if (isOfflineLike(e)) return readCache();
+        throw e;
+      }
+    });
   },
 
   async addSubscription(sub: Subscription): Promise<Subscription> {
