@@ -4,7 +4,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
-import { AuthProvider } from '../context/AuthContext';
+import AuthProvider from '../context/AuthContext';
 import { useAuth } from '../hooks/useAuth';
 import { lightTheme, darkTheme } from '../theme';
 import { NotificationService } from '../services/notification.service';
@@ -20,21 +20,38 @@ const RootLayoutNav = () => {
   const segments = useSegments();
   const router = useRouter();
 
+
+  useEffect(() => {
+    console.log('segments:', segments, 'user:', !!user, 'isLoading:', isLoading);
+  }, [segments, user, isLoading]);
+
   // Navigation Logic based on Auth State
   useEffect(() => {
     if (isLoading) return;
 
-    const inAuthGroup = segments[0] === '(auth)';
+    // Cast to string[] because expo-router's generated union type doesn't include
+    // runtime-valid values like '' or 'index' for the root route.
+    const segs = segments as unknown as string[];
+    const inTabsGroup = segs[0] === '(tabs)';
+    const inAuthGroup = segs[0] === '(auth)';
+    const inSubscriptionGroup = segs[0] === 'subscription';
+    // Root path (src/app/index.tsx) is the login screen – treat as unauthenticated area
+    const onRootOrIndex = segs.length === 0 || segs[0] === '' || segs[0] === 'index';
+    const inUnauthenticatedArea = inAuthGroup || onRootOrIndex;
 
-    if (!user && !inAuthGroup) {
-      // User is not signed in and trying to access app
-      router.replace('/(auth)/login');
-    } else if (user && inAuthGroup) {
-      if (requireMfaSetup) {
-         router.replace('/(auth)/mfa-setup');
-      } else {
-         // User is signed in and trying to access auth screen
-         router.replace('/(tabs)');
+    if (user) {
+      // Logged-in user anywhere outside of tabs/subscription → send to dashboard
+      if (!inTabsGroup && !inSubscriptionGroup) {
+        if (requireMfaSetup) {
+          router.replace('/(auth)/mfa-setup');
+        } else {
+          router.replace('/(tabs)');
+        }
+      }
+    } else {
+      // Logged-out user trying to access a protected area → send to login
+      if (!inUnauthenticatedArea) {
+        router.replace('/(auth)/login');
       }
     }
   }, [user, isLoading, requireMfaSetup, segments]);

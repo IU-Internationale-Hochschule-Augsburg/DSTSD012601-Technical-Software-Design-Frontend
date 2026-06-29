@@ -46,7 +46,6 @@ export const SubscriptionService = {
   async addSubscription(sub: Subscription): Promise<Subscription> {
     const userId = await currentUserId();
     if (!userId) {
-      // Ohne Login nur lokal puffern
       const cache = await readCache();
       await writeCache([...cache, sub]);
       return sub;

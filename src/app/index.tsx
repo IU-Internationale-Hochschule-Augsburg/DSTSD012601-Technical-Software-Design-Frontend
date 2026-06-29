@@ -41,7 +41,7 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { setUser, setRequireMfaSetup } = useAuth();
+  const { setUser, setIsLoading, setRequireMfaSetup } = useAuth();
   const theme = useTheme();
   const router = useRouter();
 
@@ -60,6 +60,7 @@ export default function HomeScreen() {
         setRequireMfaSetup(true);
       }
       setUser(user);
+      setIsLoading(false);
     } catch (e) {
       setError('Login fehlgeschlagen. Bitte überprüfen Sie Ihre Daten.');
     } finally {

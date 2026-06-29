@@ -9,7 +9,7 @@ import { EmptyState } from '../../components/EmptyState';
 import type { Subscription, FilterOptions, SortOption, SortField } from '../../types';
 
 export default function SubscriptionsScreen() {
-  const { loading, refresh, getFilteredAndSorted } = useSubscriptions();
+  const { loading, syncing, refresh, getFilteredAndSorted } = useSubscriptions();
   const theme = useTheme();
   const router = useRouter();
 
@@ -71,7 +71,7 @@ export default function SubscriptionsScreen() {
         )}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={loading} onRefresh={refresh} />
+          <RefreshControl refreshing={syncing} onRefresh={refresh} />
         }
         ListEmptyComponent={
           loading ? null : (
