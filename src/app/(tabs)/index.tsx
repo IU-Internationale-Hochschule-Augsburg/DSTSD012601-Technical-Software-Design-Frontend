@@ -11,15 +11,15 @@ import type { Subscription } from '../../types';
 
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const { subscriptions } = useSubscriptions();
+  const { subscriptions = [] } = useSubscriptions();
   const theme = useTheme();
   const router = useRouter();
 
   // Basic Derived State Computations
-  const totalSpendings = subscriptions.reduce((sum, sub) => sum + sub.amount, 0);
+  const totalSpendings = subscriptions?.reduce((sum, sub) => sum + sub.amount, 0) ?? 0;
 
   // Sort by date to get closest first
-  const sortedSubs = [...subscriptions].sort((a, b) =>
+  const sortedSubs = [...(subscriptions || [])].sort((a, b) =>
       new Date(a.nextPaymentDate).getTime() - new Date(b.nextPaymentDate).getTime()
   );
 
@@ -27,7 +27,7 @@ export default function DashboardScreen() {
   const trialPeriods = sortedSubs.filter(s => s.isTrialPeriod).slice(0, 5);
 
   // Assuming nextCancellationDate exists for cancellation deadlines
-  const upcomingCancellations = [...subscriptions]
+  const upcomingCancellations = [...(subscriptions || [])]
       .filter(s => s.nextCancellationDate)
       .sort((a, b) => new Date(a.nextCancellationDate!).getTime() - new Date(b.nextCancellationDate!).getTime())
       .slice(0, 5);

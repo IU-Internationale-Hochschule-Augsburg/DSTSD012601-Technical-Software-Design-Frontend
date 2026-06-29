@@ -1,19 +1,52 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, useTheme, SegmentedButtons, Text, Snackbar } from 'react-native-paper';
+import { TextInput, Button, useTheme, Text, Snackbar } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
-import {CATEGORY_LABELS, SubscriptionCategory} from '../../types';
-import {AutocompleteDropdown} from "react-native-autocomplete-dropdown";
+import { CATEGORY_LABELS, SubscriptionCategory } from '../../types';
+import { AutocompleteDropdown } from "react-native-autocomplete-dropdown";
+
+// Map category to dropdown id
+const categoryToDropdownId: Record<SubscriptionCategory, string> = {
+  [SubscriptionCategory.STREAMING]: '1',
+  [SubscriptionCategory.MUSIC]: '2',
+  [SubscriptionCategory.SOFTWARE]: '3',
+  [SubscriptionCategory.FITNESS]: '4',
+  [SubscriptionCategory.FOOD]: '5',
+  [SubscriptionCategory.INSURANCE]: '6',
+  [SubscriptionCategory.PHONE]: '7',
+  [SubscriptionCategory.INTERNET]: '8',
+  [SubscriptionCategory.CLOUD]: '9',
+  [SubscriptionCategory.GAMING]: '10',
+  [SubscriptionCategory.NEWS]: '11',
+  [SubscriptionCategory.OTHER]: '12',
+};
+
+// Map dropdown id back to category
+const dropdownIdToCategory: Record<string, SubscriptionCategory> = {
+  '1': SubscriptionCategory.STREAMING,
+  '2': SubscriptionCategory.MUSIC,
+  '3': SubscriptionCategory.SOFTWARE,
+  '4': SubscriptionCategory.FITNESS,
+  '5': SubscriptionCategory.FOOD,
+  '6': SubscriptionCategory.INSURANCE,
+  '7': SubscriptionCategory.PHONE,
+  '8': SubscriptionCategory.INTERNET,
+  '9': SubscriptionCategory.CLOUD,
+  '10': SubscriptionCategory.GAMING,
+  '11': SubscriptionCategory.NEWS,
+  '12': SubscriptionCategory.OTHER,
+};
 
 export default function EditSubscriptionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { subscriptions, updateSubscription, deleteSubscription } = useSubscriptions();
+  const { subscriptions = [], updateSubscription, deleteSubscription } = useSubscriptions();
   const theme = useTheme();
   const router = useRouter();
 
   const [name, setName] = useState('');
   const [category, setCategory] = useState<SubscriptionCategory>(SubscriptionCategory.OTHER);
+  const [categoryDropdownId, setCategoryDropdownId] = useState('12'); // Corresponds to OTHER
   const [amount, setAmount] = useState('');
   const [paymentDay, setPaymentDay] = useState('');
   const [cancellationPeriod, setCancellationPeriod] = useState('');
@@ -22,17 +55,26 @@ export default function EditSubscriptionScreen() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!id || !subscriptions || subscriptions.length === 0) return;
+
     const sub = subscriptions.find(s => s.id === id);
     if (sub) {
-      setName(sub.name);
-      setCategory(sub.category);
-      setAmount(sub.amount.toString());
-      setPaymentDay(sub.paymentDay.toString());
-      setCancellationPeriod(sub.cancellationPeriod);
+      setName(sub.name || '');
+      const cat = sub.category || SubscriptionCategory.OTHER;
+      setCategory(cat);
+      setCategoryDropdownId(categoryToDropdownId[cat]);
+      setAmount((sub.amount ?? 0).toString());
+      setPaymentDay((sub.paymentDay ?? 1).toString());
+      setCancellationPeriod(sub.cancellationPeriod || '');
     }
   }, [id, subscriptions]);
 
   const handleUpdate = async () => {
+    if (!id) {
+      setError('Abonnement-ID nicht gefunden.');
+      return;
+    }
+
     if (!name || !amount || !paymentDay) {
       setError('Bitte alle Pflichtfelder ausfüllen.');
       return;
@@ -56,12 +98,17 @@ export default function EditSubscriptionScreen() {
   };
 
   const handleDelete = async () => {
-     try {
-       await deleteSubscription(id);
-       router.back();
-     } catch (e) {
-       setError('Fehler beim Löschen.');
-     }
+    if (!id) {
+      setError('Abonnement-ID nicht gefunden.');
+      return;
+    }
+
+    try {
+      await deleteSubscription(id);
+      router.back();
+    } catch (e) {
+      setError('Fehler beim Löschen.');
+    }
   };
 
   return (
@@ -113,28 +160,36 @@ export default function EditSubscriptionScreen() {
             style={styles.input}
          />
 
-         <Text variant="labelMedium" style={{ marginBottom: 8, marginTop: 8 }}>Kategorie</Text>
-          <AutocompleteDropdown
-              clearOnFocus={false}
-              closeOnBlur={true}
-              closeOnSubmit={false}
-              initialValue={{ id: '2' }} // Example initial value
-              onSelectItem={(val: any) => setCategory(val as SubscriptionCategory)}
-              dataSet={[
-                  { id: '1', title: CATEGORY_LABELS[SubscriptionCategory.STREAMING] },
-                  { id: '2', title: CATEGORY_LABELS[SubscriptionCategory.MUSIC] },
-                  { id: '3', title: CATEGORY_LABELS[SubscriptionCategory.SOFTWARE] },
-                  { id: '4', title: CATEGORY_LABELS[SubscriptionCategory.FITNESS] },
-                  { id: '5', title: CATEGORY_LABELS[SubscriptionCategory.FOOD] },
-                  { id: '6', title: CATEGORY_LABELS[SubscriptionCategory.INSURANCE] },
-                  { id: '7', title: CATEGORY_LABELS[SubscriptionCategory.PHONE] },
-                  { id: '8', title: CATEGORY_LABELS[SubscriptionCategory.INTERNET] },
-                  { id: '9', title: CATEGORY_LABELS[SubscriptionCategory.CLOUD] },
-                  { id: '10', title: CATEGORY_LABELS[SubscriptionCategory.GAMING] },
-                  { id: '11', title: CATEGORY_LABELS[SubscriptionCategory.NEWS] },
-                  { id: '12', title: CATEGORY_LABELS[SubscriptionCategory.OTHER] },
-              ]}
-          />
+          <Text variant="labelMedium" style={{ marginBottom: 8, marginTop: 8 }}>Kategorie</Text>
+           <AutocompleteDropdown
+               clearOnFocus={false}
+               closeOnBlur={true}
+               closeOnSubmit={false}
+               initialValue={{ id: categoryDropdownId }}
+               onSelectItem={(val: any) => {
+                 if (val && val.id) {
+                   const selectedCat = dropdownIdToCategory[val.id];
+                   if (selectedCat) {
+                     setCategory(selectedCat);
+                     setCategoryDropdownId(val.id);
+                   }
+                 }
+               }}
+               dataSet={[
+                   { id: '1', title: CATEGORY_LABELS[SubscriptionCategory.STREAMING] },
+                   { id: '2', title: CATEGORY_LABELS[SubscriptionCategory.MUSIC] },
+                   { id: '3', title: CATEGORY_LABELS[SubscriptionCategory.SOFTWARE] },
+                   { id: '4', title: CATEGORY_LABELS[SubscriptionCategory.FITNESS] },
+                   { id: '5', title: CATEGORY_LABELS[SubscriptionCategory.FOOD] },
+                   { id: '6', title: CATEGORY_LABELS[SubscriptionCategory.INSURANCE] },
+                   { id: '7', title: CATEGORY_LABELS[SubscriptionCategory.PHONE] },
+                   { id: '8', title: CATEGORY_LABELS[SubscriptionCategory.INTERNET] },
+                   { id: '9', title: CATEGORY_LABELS[SubscriptionCategory.CLOUD] },
+                   { id: '10', title: CATEGORY_LABELS[SubscriptionCategory.GAMING] },
+                   { id: '11', title: CATEGORY_LABELS[SubscriptionCategory.NEWS] },
+                   { id: '12', title: CATEGORY_LABELS[SubscriptionCategory.OTHER] },
+               ]}
+           />
 
          <View style={styles.buttonRow}>
             <Button mode="text" onPress={() => router.back()} style={styles.button}>

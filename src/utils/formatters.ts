@@ -4,7 +4,10 @@ import { CURRENCY_SYMBOL } from './constants';
  * Formats a number as EUR currency string.
  * @example formatCurrency(9.99) → "9,99 €"
  */
-export function formatCurrency(amount: number): string {
+export function formatCurrency(amount: number | null | undefined): string {
+  if (amount === null || amount === undefined) {
+    return `0,00 ${CURRENCY_SYMBOL}`;
+  }
   return `${amount.toFixed(2).replace('.', ',')} ${CURRENCY_SYMBOL}`;
 }
 
@@ -12,7 +15,10 @@ export function formatCurrency(amount: number): string {
  * Formats an ISO date string to a localized German date.
  * @example formatDate('2026-05-15') → "15.05.2026"
  */
-export function formatDate(isoDate: string): string {
+export function formatDate(isoDate: string | null | undefined): string {
+  if (!isoDate) {
+    return '--';
+  }
   const date = new Date(isoDate);
   return date.toLocaleDateString('de-DE', {
     day: '2-digit',
@@ -24,7 +30,11 @@ export function formatDate(isoDate: string): string {
 /**
  * Formats a date as relative text (e.g., "in 3 Tagen", "morgen").
  */
-export function formatRelativeDate(isoDate: string): string {
+export function formatRelativeDate(isoDate: string | null | undefined): string {
+  if (!isoDate) {
+    return 'unbekannt';
+  }
+
   const now = new Date();
   const target = new Date(isoDate);
   const diffMs = target.getTime() - now.getTime();
@@ -42,7 +52,10 @@ export function formatRelativeDate(isoDate: string): string {
  * Returns the payment day ordinal string.
  * @example formatPaymentDay(1) → "1."
  */
-export function formatPaymentDay(day: number): string {
+export function formatPaymentDay(day: number | null | undefined): string {
+  if (day === null || day === undefined) {
+    return '--';
+  }
   return `${day}.`;
 }
 
