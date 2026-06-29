@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, TextInput, Button, useTheme, Snackbar } from 'react-native-paper';
+import { Text, TextInput, Button, useTheme, Snackbar, ActivityIndicator } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import QRCode from 'react-native-qrcode-svg';
 import { AuthService } from '../../services/auth.service';
 import { useAuth } from '../../hooks/useAuth';
 
 export default function MfaSetupScreen() {
   const [code, setCode] = useState('');
-  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [otpAuthUri, setOtpAuthUri] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [skipping, setSkipping] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const theme = useTheme();
@@ -17,10 +19,10 @@ export default function MfaSetupScreen() {
   const { setRequireMfaSetup } = useAuth();
 
   useEffect(() => {
-    // Generate MFA secret when screen loads
+    // TOTP-Secret + QR beim Laden generieren.
     AuthService.setupMFA().then((data) => {
       setSecret(data.secret);
-      setQrCodeDataUrl(data.qrCodeDataUrl);
+      setOtpAuthUri(data.otpAuthUri);
     });
   }, []);
 
@@ -39,10 +41,21 @@ export default function MfaSetupScreen() {
       } else {
         setError('Ungültiger Code. Bitte versuchen Sie es erneut.');
       }
-    } catch (e) {
+    } catch {
       setError('Fehler bei der Verifizierung.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSkip = async () => {
+    setSkipping(true);
+    try {
+      await AuthService.skipMFA();
+      setRequireMfaSetup(false);
+      router.replace('/(tabs)');
+    } finally {
+      setSkipping(false);
     }
   };
 
@@ -51,37 +64,52 @@ export default function MfaSetupScreen() {
       <Text variant="headlineMedium" style={[styles.title, { color: theme.colors.primary }]}>
         MFA Einrichten
       </Text>
-      
+
       <Text variant="bodyLarge" style={styles.description}>
-        Scannen Sie diesen Code in Ihrer Authenticator-App (z.B. Google Authenticator) oder geben Sie den Secret-Schlüssel manuell ein.
+        Scannen Sie diesen Code in Ihrer Authenticator-App (z.B. Google Authenticator) oder geben
+        Sie den Secret-Schlüssel manuell ein.
       </Text>
 
-      <View style={[styles.qrPlaceholder, { backgroundColor: '#fff', borderColor: theme.colors.outline }]}>
-         {/* Platzhalter für QR Code - In Produktion react-native-qrcode-svg nutzen */}
-         <Text style={{ color: '#000' }}>[ QR CODE PLATZHALTER ]</Text>
+      <View style={[styles.qrBox, { backgroundColor: '#fff', borderColor: theme.colors.outline }]}>
+        {otpAuthUri ? (
+          <QRCode value={otpAuthUri} size={184} />
+        ) : (
+          <ActivityIndicator />
+        )}
       </View>
 
       <Text variant="bodyMedium" style={styles.secretText}>
-        Secret: <Text style={{ fontWeight: 'bold' }}>{secret}</Text>
+        Secret: <Text style={{ fontWeight: 'bold' }}>{secret ?? '…'}</Text>
       </Text>
 
       <TextInput
         mode="outlined"
         label="6-stelliger Code"
         value={code}
-        onChangeText={setCode}
+        onChangeText={(t) => setCode(t.replace(/\D/g, ''))}
         keyboardType="number-pad"
         maxLength={6}
         style={styles.input}
       />
 
-      <Button 
-        mode="contained" 
-        onPress={handleVerify} 
+      <Button
+        mode="contained"
+        onPress={handleVerify}
         loading={loading}
+        disabled={loading || skipping}
         style={styles.button}
       >
         Bestätigen
+      </Button>
+
+      <Button
+        mode="text"
+        onPress={handleSkip}
+        loading={skipping}
+        disabled={loading || skipping}
+        style={styles.skipButton}
+      >
+        Überspringen
       </Button>
 
       <Snackbar visible={!!error} onDismiss={() => setError(null)}>
@@ -106,12 +134,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 32,
   },
-  qrPlaceholder: {
+  qrBox: {
     width: 200,
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
+    borderRadius: 8,
     marginBottom: 24,
   },
   secretText: {
@@ -124,5 +153,9 @@ const styles = StyleSheet.create({
   button: {
     width: '100%',
     paddingVertical: 4,
-  }
+  },
+  skipButton: {
+    width: '100%',
+    marginTop: 8,
+  },
 });

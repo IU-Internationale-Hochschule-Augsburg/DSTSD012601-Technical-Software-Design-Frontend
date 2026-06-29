@@ -19,6 +19,7 @@ export const STORAGE_KEYS = {
   REFRESH_TOKEN: '@abotracker/refresh_token',
   TOKEN_EXPIRES_AT: '@abotracker/token_expires_at',
   MFA_VERIFIED: '@abotracker/mfa_verified',
+  MFA_SECRET: '@abotracker/mfa_secret',
   ONBOARDING_COMPLETE: '@abotracker/onboarding_complete',
 
   // ─── Backend / Offline-Sync Stores ─────────────────────────────────────────

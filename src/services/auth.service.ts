@@ -3,6 +3,7 @@ import { AuthProvider, type User } from '../types';
 import { StorageService } from './storage.service';
 import { ApiClient, ApiError } from './api.client';
 import { STORAGE_KEYS } from '../utils/constants';
+import { generateSecret, buildOtpAuthUri, verifyTotp } from '../utils/totp';
 
 export interface GoogleProfile {
   sub: string;
@@ -116,16 +117,44 @@ export const AuthService = {
     return persistSession(auth, AuthProvider.GOOGLE);
   },
 
-  async setupMFA(): Promise<{ secret: string; qrCodeDataUrl: string }> {
-    return {
-      secret: 'MOCK_SECRET_BASE32',
-      qrCodeDataUrl:
-        'otpauth://totp/AboTracker:user@example.com?secret=MOCK_SECRET_BASE32&issuer=AboTracker',
-    };
+  /**
+   * Startet die MFA-Einrichtung: erzeugt ein TOTP-Secret (Google Authenticator
+   * kompatibel), persistiert es als "pending" und liefert Secret + otpauth-URI
+   * für den QR-Code.
+   */
+  async setupMFA(): Promise<{ secret: string; otpAuthUri: string }> {
+    const cached = await StorageService.get<User>(STORAGE_KEYS.USER);
+    const account = cached?.email ?? 'user';
+
+    const secret = generateSecret();
+    await StorageService.set(STORAGE_KEYS.MFA_SECRET, secret);
+
+    return { secret, otpAuthUri: buildOtpAuthUri(secret, account) };
   },
 
+  /**
+   * Verifiziert einen 6-stelligen TOTP-Code gegen das eingerichtete Secret.
+   * Bei Erfolg wird MFA dauerhaft aktiviert.
+   */
   async verifyMFA(code: string): Promise<boolean> {
-    return code === '123456';
+    const secret = await StorageService.get<string>(STORAGE_KEYS.MFA_SECRET);
+    if (!secret) return false;
+
+    const ok = await verifyTotp(code, secret);
+    if (ok) {
+      await StorageService.set(STORAGE_KEYS.MFA_VERIFIED, true);
+      const user = await StorageService.get<User>(STORAGE_KEYS.USER);
+      if (user) await StorageService.set(STORAGE_KEYS.USER, { ...user, mfaEnabled: true });
+    }
+    return ok;
+  },
+
+  /** Überspringt die MFA-Einrichtung (Secret verwerfen, MFA bleibt deaktiviert). */
+  async skipMFA(): Promise<void> {
+    await StorageService.remove(STORAGE_KEYS.MFA_SECRET);
+    await StorageService.remove(STORAGE_KEYS.MFA_VERIFIED);
+    const user = await StorageService.get<User>(STORAGE_KEYS.USER);
+    if (user) await StorageService.set(STORAGE_KEYS.USER, { ...user, mfaEnabled: false });
   },
 
   async logout(): Promise<void> {
@@ -142,6 +171,7 @@ export const AuthService = {
     await StorageService.remove(STORAGE_KEYS.REFRESH_TOKEN);
     await StorageService.remove(STORAGE_KEYS.TOKEN_EXPIRES_AT);
     await StorageService.remove(STORAGE_KEYS.MFA_VERIFIED);
+    await StorageService.remove(STORAGE_KEYS.MFA_SECRET);
   },
 
   async getCurrentUser(): Promise<User | null> {
