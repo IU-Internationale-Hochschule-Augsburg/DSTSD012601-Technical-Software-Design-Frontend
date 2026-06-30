@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
-import { TextInput, Button, useTheme, SegmentedButtons, Text, Snackbar } from 'react-native-paper';
+import { TextInput, Button, useTheme, Text, Snackbar } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
 import {CATEGORY_LABELS, SubscriptionCategory} from '../../types';
 import { generateId } from '../../utils/formatters';
 import {AutocompleteDropdown} from "react-native-autocomplete-dropdown";
-import HomeScreen from "@/app";
 
 export default function AddSubscriptionScreen() {
   const { addSubscription } = useSubscriptions();
@@ -44,7 +43,7 @@ export default function AddSubscriptionScreen() {
         updatedAt: new Date().toISOString(),
       });
       router.navigate('/(tabs)',{});
-    } catch (e) {
+    } catch {
       setError('Fehler beim Speichern.');
     } finally {
       setLoading(false);

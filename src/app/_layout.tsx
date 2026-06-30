@@ -51,7 +51,7 @@ const RootLayoutNav = () => {
         router.replace('/(auth)/login');
       }
     }
-  }, [user, isLoading, requireMfaSetup, segments]);
+  }, [user, isLoading, requireMfaSetup, segments, router]);
 
   return (
     <PaperProvider theme={theme}>
