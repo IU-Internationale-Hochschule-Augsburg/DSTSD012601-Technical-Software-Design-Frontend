@@ -12,7 +12,7 @@ interface Props {
   onEdit?: () => void;
 }
 
-export const SubscriptionCard = ({ subscription, onPress, onEdit }: Props) => {
+const SubscriptionCardComponent = ({ subscription, onPress, onEdit }: Props) => {
   const theme = useTheme();
   const iconName = CATEGORY_ICONS[subscription.category] as keyof typeof MaterialCommunityIcons.glyphMap || 'dots-horizontal-circle';
 
@@ -66,6 +66,9 @@ export const SubscriptionCard = ({ subscription, onPress, onEdit }: Props) => {
     </Card>
   );
 };
+
+// Memoisiert: Karten rendern in Listen nur neu, wenn sich ihre Props ändern.
+export const SubscriptionCard = React.memo(SubscriptionCardComponent);
 
 const styles = StyleSheet.create({
   card: {

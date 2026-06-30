@@ -43,3 +43,6 @@ app-example
 /android
 
 .vscode
+
+.api-keys
+/.env
