@@ -35,7 +35,7 @@ export default function RegisterScreen() {
       setRequireMfaSetup(true);
       setUser(user);
       router.replace('/(auth)/mfa-setup');
-    } catch (e) {
+    } catch (_e) {
       setError('Registrierung fehlgeschlagen.');
     } finally {
       setLoading(false);
