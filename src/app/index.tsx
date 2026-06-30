@@ -31,7 +31,7 @@ export default function HomeScreen() {
       setRequireMfaSetup(configured && enabled);
       setUser(user);
       setIsLoading(false);
-    } catch (_e) {
+    } catch {
       setError('Login fehlgeschlagen. Bitte überprüfen Sie Ihre Daten.');
     } finally {
       setLoading(false);
