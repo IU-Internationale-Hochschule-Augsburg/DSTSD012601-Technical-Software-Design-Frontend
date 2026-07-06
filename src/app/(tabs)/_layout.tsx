@@ -36,6 +36,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="costs"
+        options={{
+          title: 'Kosten',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="chart-pie" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="reminders"
+        options={{
+          title: 'Erinnerungen',
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="bell" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profil',
