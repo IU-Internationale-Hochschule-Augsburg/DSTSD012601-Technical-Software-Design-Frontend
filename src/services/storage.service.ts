@@ -8,7 +8,7 @@ export const StorageService = {
     try {
       const jsonValue = await AsyncStorage.getItem(key);
       return jsonValue != null ? JSON.parse(jsonValue) : null;
-    } catch (e) {
+    } catch {
       return null;
     }
   },
@@ -18,7 +18,7 @@ export const StorageService = {
       const jsonValue = JSON.stringify(value);
       await AsyncStorage.setItem(key, jsonValue);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   },
@@ -27,7 +27,7 @@ export const StorageService = {
     try {
       await AsyncStorage.removeItem(key);
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   },
@@ -36,7 +36,7 @@ export const StorageService = {
     try {
       await AsyncStorage.clear();
       return true;
-    } catch (e) {
+    } catch {
       return false;
     }
   },

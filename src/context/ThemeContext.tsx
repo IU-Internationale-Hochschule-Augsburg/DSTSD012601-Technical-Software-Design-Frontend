@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, ReactNode } from 'react';
-import type { User, ThemeMode } from '../types';
+import type { ThemeMode } from '../types';
 import { StorageService } from '../services/storage.service';
 import { STORAGE_KEYS } from '../utils/constants';
 

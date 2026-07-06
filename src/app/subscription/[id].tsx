@@ -90,7 +90,7 @@ export default function EditSubscriptionScreen() {
         amount: parseFloat(amount.replace(',', '.')),
       });
       router.back();
-    } catch (e) {
+    } catch {
       setError('Fehler beim Aktualisieren.');
     } finally {
       setLoading(false);
@@ -106,7 +106,7 @@ export default function EditSubscriptionScreen() {
     try {
       await deleteSubscription(id);
       router.back();
-    } catch (e) {
+    } catch {
       setError('Fehler beim Löschen.');
     }
   };
