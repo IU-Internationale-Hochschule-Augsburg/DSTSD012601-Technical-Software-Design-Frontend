@@ -1,9 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, useTheme, Button, Avatar, List, Switch } from 'react-native-paper';
+import { Text, useTheme, Button, Avatar, List, Switch, Snackbar } from 'react-native-paper';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthService } from '../../services/auth.service';
+import { NotificationService } from '../../services/notification.service';
+import { runReminderScan } from '../../hooks/usePushReminders';
 import { ThemeContext } from '../../context/ThemeContext';
 import { APP_VERSION } from '../../utils/constants';
 
@@ -16,6 +18,29 @@ export default function ProfileScreen() {
   const [loggingOut, setLoggingOut] = useState(false);
   const [mfaConfigured, setMfaConfigured] = useState(false);
   const [mfaEnabled, setMfaEnabled] = useState(false);
+
+  const [enablingNotifications, setEnablingNotifications] = useState(false);
+  const [snackbar, setSnackbar] = useState<string | null>(null);
+
+  // Erlaubnis per Nutzer-Geste anfragen (Browser unterdrücken Auto-Prompts).
+  // Bei Erfolg sofort die fälligen Abos prüfen, damit die erste Erinnerung
+  // direkt erscheint.
+  const enableNotifications = async () => {
+    setEnablingNotifications(true);
+    try {
+      const granted = await NotificationService.requestPermission();
+      if (granted) {
+        if (user?.id) await runReminderScan(user.id);
+        setSnackbar('Benachrichtigungen sind aktiviert.');
+      } else {
+        setSnackbar('Keine Erlaubnis erteilt. Bitte in den Browser-/Geräteeinstellungen zulassen.');
+      }
+    } catch {
+      setSnackbar('Benachrichtigungen konnten nicht aktiviert werden.');
+    } finally {
+      setEnablingNotifications(false);
+    }
+  };
 
   // MFA-Status bei jedem Fokussieren neu laden (z. B. nach Rückkehr vom Setup).
   useFocusEffect(
@@ -60,6 +85,7 @@ export default function ProfileScreen() {
   };
 
   return (
+    <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
     <ScrollView style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <View style={styles.header}>
         {user?.avatarUrl ? (
@@ -81,6 +107,27 @@ export default function ProfileScreen() {
           title="Dunkles Design (Dark Mode)"
           left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
           right={() => <Switch value={themeMode === 'dark'} onValueChange={toggleTheme} />}
+        />
+      </List.Section>
+
+      <List.Section>
+        <List.Subheader>Benachrichtigungen</List.Subheader>
+        <List.Item
+          title="Erinnerungen aktivieren"
+          description="Werde benachrichtigt, wenn ein Abo bald abläuft oder sich verlängert."
+          left={(props) => <List.Icon {...props} icon="bell-ring-outline" />}
+          right={() => (
+            <Button
+              mode="contained-tonal"
+              compact
+              onPress={enableNotifications}
+              loading={enablingNotifications}
+              disabled={enablingNotifications}
+              style={styles.notifyButton}
+            >
+              Aktivieren
+            </Button>
+          )}
         />
       </List.Section>
 
@@ -126,6 +173,10 @@ export default function ProfileScreen() {
         </Text>
       </View>
     </ScrollView>
+      <Snackbar visible={!!snackbar} onDismiss={() => setSnackbar(null)} duration={5000}>
+        {snackbar}
+      </Snackbar>
+    </View>
   );
 }
 
@@ -148,5 +199,8 @@ const styles = StyleSheet.create({
   },
   version: {
     marginTop: 16,
+  },
+  notifyButton: {
+    alignSelf: 'center',
   },
 });

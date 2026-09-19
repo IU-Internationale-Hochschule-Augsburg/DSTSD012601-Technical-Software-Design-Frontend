@@ -6,6 +6,7 @@ import { Provider as PaperProvider } from 'react-native-paper';
 import { ThemeProvider, ThemeContext } from '../context/ThemeContext';
 import AuthProvider from '../context/AuthContext';
 import { useAuth } from '../hooks/useAuth';
+import { usePushReminders } from '../hooks/usePushReminders';
 import { lightTheme, darkTheme } from '../theme';
 import { NotificationService } from '../services/notification.service';
 import { AutocompleteDropdownContextProvider } from "react-native-autocomplete-dropdown";
@@ -19,6 +20,9 @@ const RootLayoutNav = () => {
   const { user, isLoading, requireMfaSetup } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+
+  // App-Start: lokale Abos scannen und fällige Push-Erinnerungen versenden.
+  usePushReminders();
 
   // Navigation Logic based on Auth State
   useEffect(() => {
